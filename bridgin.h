@@ -6,7 +6,7 @@
 #define PLUGIN_GUI_TYPE    NULL
 #define PLUGIN_ID          "core-mr-jonze-bridgin"
 #define PLUGIN_NAME        "bridgin"
-#define PLUGIN_VERSION     "0.5s"
+#define PLUGIN_VERSION     "0.5pre"
 #define PLUGIN_SHORT_DESC  "short description"
 #define PLUGIN_LONG_DESC   "long description"
 #define PLUGIN_AUTHOR      "bill auger <mr.j.spam.me@gmail.com>"
@@ -17,6 +17,8 @@
 // app constants
 #define BRIDGIN_NICK        "BRIDGIN"
 #define DEFAULT_BRIDGE_NAME "default"
+#define NICK_PREFIX         "(from" // dont use '<' some clients will supress it as html
+#define NICK_POSTFIX        ")"
 
 // admin commands
 #define N_COMMANDS    13
@@ -74,6 +76,11 @@
 #define PROTOCOL_BUFFER_SIZE 256
 #define IRC_PROTOCOL         "IRC"
 
+// purple constants
+#define RECEIVED_IM_SIGNAL     "received-im-msg"
+#define RECEIVED_CHAT_SIGNAL   "received-chat-msg"
+#define CHANNEL_CLOSING_SIGNAL "deleting-conversation"
+
 
 #include <string.h>
 
@@ -104,75 +111,78 @@ typedef struct Bridge
   struct Bridge* next ;
 } Bridge ;
 
-static PurplePluginInfo PluginInfo ;
-static PurplePlugin*    ThisPlugin ;
-static PurpleCmdId      CommandIds[N_COMMANDS] ;
+static PurplePluginInfo PluginInfo ;             // init pre main()
+static PurplePlugin*    ThisPlugin ;             // init on handlePluginLoaded()
+static PurpleCmdId      CommandIds[N_COMMANDS] ; // init on handlePluginLoaded()
 static char             ChatBuffer[CHAT_BUFFER_SIZE] ;
-static Bridge*          SentinelBridge ;
+static gboolean         ChatMutex ;              // init on handlePluginInit()
+static Bridge*          SentinelBridge ;         // init on handlePluginInit()
 
 // helpers
 PurpleCmdId registerCmd(  const char* command , const char* format ,
-                          PurpleCmdRet (* callback)() , const char* help) ;
+                          PurpleCmdRet (*callback)() , const char* help) ;
 void        alert(        char* msg) ;
 gboolean    isBlank(      const char* aCstring) ;
 
 // model helpers
 Bridge*        newBridge(         char* bridgeName) ;
-Channel*       newChannel(        PurpleConversation* conv) ;
-Bridge*        getBridgeByChannel(PurpleConversation* conv) ;
+Channel*       newChannel(        PurpleConversation* aConv) ;
+Bridge*        getBridgeByChannel(PurpleConversation* aConv) ;
 Bridge*        getBridgeByName(   char* bridgeName) ;
-const char*    getChannelName(    PurpleConversation* conv) ;
-const char*    getProtocol(       PurpleAccount *account) ;
-PurpleAccount* getAccount(        PurpleConversation* conv) ;
-const char*    getUsername(       PurpleAccount *account) ;
-const char*    getNick(           PurpleAccount *account) ;
-void           setChannel(        char* bridgeName , PurpleConversation* conv) ;
+const char*    getChannelName(    PurpleConversation* aConv) ;
+const char*    getProtocol(       PurpleAccount* anAccount) ;
+PurpleAccount* getAccount(        PurpleConversation* aConv) ;
+const char*    getUsername(       PurpleAccount* anAccount) ;
+const char*    getNick(           PurpleAccount* anAccount) ;
+gboolean       addChannel(        char* bridgeName , PurpleConversation* aConv) ;
 void           storeSession(      void) ;
 unsigned int   getNBridges(       void) ;
-unsigned int   getNChannels(Bridge* bridge) ;
+unsigned int   getNChannels(Bridge* aBridge) ;
 
 // event handlers
 void     handlePluginInit(    PurplePlugin* plugin) ;
 gboolean handlePluginLoaded(  PurplePlugin* plugin) ;
 gboolean handlePluginUnloaded(PurplePlugin* plugin) ;
-void     handleIm(            PurpleAccount* account , char* sender ,
-                              char* buffer , PurpleConversation* conv ,
+void     handleIm(            PurpleAccount* anAccount , char* sender ,
+                              char* buffer , PurpleConversation* aConv ,
                               PurpleMessageFlags flags , void* data) ;
-void     handleChat(          PurpleAccount* account , char* sender ,
-                              char* buffer , PurpleConversation* conv ,
+void     handleChat(          PurpleAccount* anAccount , char* sender ,
+                              char* buffer , PurpleConversation* aConv ,
                               PurpleMessageFlags flags , void* data) ;
-void     handleChannelClosed( PurpleConversation* conv, void *data) ;
+void     handleChannelClosed( PurpleConversation* aConv, void *data) ;
 
 // admin command handlers */
-PurpleCmdRet handleAddCmd(      PurpleConversation* conv , const gchar* cmd ,
+PurpleCmdRet handleAddCmd(      PurpleConversation* aConv , const gchar* cmd ,
                                 gchar** args , gchar** error , void* data) ;
-PurpleCmdRet handleRemoveCmd(   PurpleConversation* conv , const gchar* cmd ,
+PurpleCmdRet handleRemoveCmd(   PurpleConversation* aConv , const gchar* cmd ,
                                 gchar** args , gchar** error , void* data) ;
-PurpleCmdRet handleEnableCmd(   PurpleConversation* conv , const gchar* cmd ,
+PurpleCmdRet handleEnableCmd(   PurpleConversation* aConv , const gchar* cmd ,
                                 gchar** args , gchar** error , void* data) ;
-PurpleCmdRet handleEchoCmd(     PurpleConversation* conv , const gchar* cmd ,
+PurpleCmdRet handleEchoCmd(     PurpleConversation* aConv , const gchar* cmd ,
                                 gchar** args , gchar** error , void* data) ;
-PurpleCmdRet handleChatCmd(     PurpleConversation* conv , const gchar* cmd ,
+PurpleCmdRet handleChatCmd(     PurpleConversation* aConv , const gchar* cmd ,
                                 gchar** args , gchar** error , void* data) ;
-PurpleCmdRet handleBroadcastCmd(PurpleConversation* conv , const gchar* cmd ,
+PurpleCmdRet handleBroadcastCmd(PurpleConversation* aConv , const gchar* cmd ,
                                 gchar** args , gchar** error , void* data) ;
-PurpleCmdRet handleStatusCmd(   PurpleConversation* conv , const gchar* cmd ,
+PurpleCmdRet handleStatusCmd(   PurpleConversation* aConv , const gchar* cmd ,
                                 gchar** args , gchar** error , void* data) ;
-PurpleCmdRet handleHelpCmd(     PurpleConversation* conv , const gchar* cmd ,
+PurpleCmdRet handleHelpCmd(     PurpleConversation* aConv , const gchar* cmd ,
                                 gchar** args , gchar** error , void* data) ;
 
 // admin command responses
-void         chatBufferDump( PurpleConversation* conv) ;
-void         addResp(        PurpleConversation* conv , char* bridgeName) ;
-void         addExistsResp(  PurpleConversation* conv , char* bridgeName) ;
-void         addConflictResp(PurpleConversation* conv) ;
-void         bridgeStatsMsg( PurpleConversation* conv , char* bridgeName) ;
+void         chatBufferDump( PurpleConversation* aConv) ;
+void         addResp(        PurpleConversation* aConv , char* bridgeName) ;
+void         addExistsResp(  PurpleConversation* aConv , char* bridgeName) ;
+void         addConflictResp(PurpleConversation* aConv) ;
+void         bridgeStatsMsg( PurpleConversation* aConv , char* bridgeName) ;
 
 // chat buffer helpers
 unsigned int chatBufferFillS(     const char* fmt , const char* s1) ;
 unsigned int chatBufferFillSS(    const char* fmt , const char* s1 , const char* s2) ;
 unsigned int chatBufferFillSSS(   const char* fmt , const char* s1 , const char* s2 ,
                                   const char* s3) ;
+unsigned int chatBufferFillSSSS(  const char* fmt , const char* s1 , const char* s2 ,
+                                  const char* s3 , const char* s4) ;
 unsigned int chatBufferFillSSSDSD(const char* fmt , const char* s1 , const char* s2 ,
                                   const char* s3 , int d1 , const char* s4 , int d2) ;
 unsigned int chatBufferCat(       const char* msg , unsigned int nChars) ;

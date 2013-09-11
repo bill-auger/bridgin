@@ -35,23 +35,25 @@ it is needed only to simplify building the bridgin plugin
 
 now go make some C(__) and when the build has completed  
 copy the contents of this repo into ./libpurple/plugins  
-cd into ./libpurple/plugins and run the install script
+cd into the plgins dir and run the install script
 
-    chmod a+x ./install && ./install
+    cd ./libpurple/plugins
+    chmod a+x ./install
+    ./install
 
 if your $HOME environment variable is properly set  
 the install script should reply with the following message  
-and pidgin will launch automatically
+and pidgin will launch automatically upon successful installation
 
     "compilation success - installing to YOUR_HOME_DIR/.purple/plugins/"
 
-check that the install location mentioned points to inside you home dir  
-and that the plugin was installed properly
+the bridgin plugin should now be available to pidgin in Tools->Plugins  
+if it is not then use this command to check that the plugin was installed
 
     ls $HOME/.purple/plugins/bridgin.so
 
-if there is no output then you will need to manually copy the file 'bridgin.so'
-into YOUR_HOME_DIR/.purple/plugins/ or /usr/lib/purple-2/  
+if there is no output then you will need to manually move the file 'bridgin.so'  
+into YOUR_HOME_DIR/.purple/plugins/ or /usr/lib/purple-2/ then restart pidgin  
   
 if you are running without X or you do not want pidgin to launch automatically  
 use this comand to compile and install only
@@ -64,7 +66,7 @@ use this comand to compile only
     make bridgin.so
   
   
-## window build instructions
+## build instructions for windows
 follow [these instructions](https://test.developer.pidgin.im/wiki/BuildingWinPidgin) to build pidgin for windows  
 then copy the contents of this repo into PIDGIN_SRC_DIR\libpurple\plugins  
 cd into PIDGIN_SRC_DIR\libpurple\plugins then make and install with:

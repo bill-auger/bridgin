@@ -1,0 +1,18 @@
+bridgin changelog
+
+
+2013-09-11 - v0.5pre
+  PENDING
+    reimplemented chat relay
+
+2013-09-08 - v0.5pre
+  b70b43e1fe
+    reimplemented add channel command and status reporting
+
+2013-09-08 - v0.5pre
+  2babc935b0
+    implement admin command handling
+
+2013-09-07 - v0.5pre
+  538eef5da2
+    initial commit with echo
