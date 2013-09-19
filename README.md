@@ -20,22 +20,23 @@ some new functionalities this will allow:
 
 ##build instructions for debian (ymmv)
 
-cd into your build dir and load sources and deps
+cd into your build dir and load the pidgin sources and build deps
 
     apt-get source pidgin
     sudo apt-get build-dep pidgin
 
 cd into ./pidgin-x.x.x/ and build pidgin and finch  
-if you already have pidgin or finch installed  
+if you already have pidgin and/or finch installed  
 you can delete this build afterward  
 it is needed only to simplify building the bridgin plugin
 
+    cd ./pidgin*
     ./configure
-    make all
+    make
 
 now go make some C(__) and when the build has completed  
 copy the contents of this repo into ./libpurple/plugins  
-cd into the plgins dir and run the install script
+cd into the plugins dir and run the install script
 
     cd ./libpurple/plugins
     chmod a+x ./install
