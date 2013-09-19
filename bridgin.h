@@ -1,3 +1,23 @@
+/*\
+|*| This file is part of the Bridgin program
+|*| Copyright 2013-2014 bill-auger <https://github.com/bill-auger/bridgin/issues>
+|*|
+|*| Bridgin is free software: you can redistribute it and/or modify
+|*| it under the terms of the GNU Affero General Public License as published by
+|*| the Free Software Foundation, either version 3 of the License, or
+|*| (at your option) any later version.
+|*|
+|*| Bridgin is distributed in the hope that it will be useful,
+|*| but WITHOUT ANY WARRANTY; without even the implied warranty of
+|*| MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+|*| GNU Affero General Public License for more details.
+|*|
+|*| You should have received a copy of the GNU Affero General Public License
+|*| along with Bridgin.  If not, see <http://www.gnu.org/licenses/>.
+\*/
+
+
+#define PREFS_GUI 0 // nyi - we strictly only need prefs for persistence
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
@@ -23,20 +43,25 @@
 // app constants
 #define BRIDGIN_NICK        "BRIDGIN"
 #define DEFAULT_BRIDGE_NAME "default"
-#define CHAT_OUT_FMT        "%s %s%s %s" 
+#define CHAT_OUT_FMT        "%s %s%s %s"
 #define NICK_PREFIX         "(from" // dont use '<' - some clients will supress it as html
 #define NICK_POSTFIX        ")"
 
 // model constants
-#define BRIDGE_PREF_FMT  "%s/%s"
-#define ENABLED_PREF_FMT "%s%s"
-#define BASE_PREF_KEY    "/plugins/core/"PLUGIN_NAME
-#define BASE_PREF_LABEL  PLUGIN_NAME" preferences"
-#define ENABLED_PREF_KEY "-enabled"
-#define SENTINEL_NAME    "sentinel"
-#define UID_BUFFER_SIZE  256
-#define UID_DELIMITER    "::"
-#define CHANNEL_ID_FMT   "%s"UID_DELIMITER"%s"UID_DELIMITER"%s"
+#define BRIDGE_PREF_FMT    "%s/%s"
+#define ENABLED_PREF_FMT   "%s%s"
+#define BASE_PREF_KEY      "/plugins/core/"PLUGIN_NAME
+#define BASE_PREF_LABEL    PLUGIN_NAME" preferences"
+#if PREFS_GUI
+#  define BRIDGES_PREF_NAME  "selected-bridge"
+#  define BRIDGES_PREF_KEY   BASE_PREF_KEY"/"BRIDGES_PREF_NAME
+#  define BRIDGES_PREF_LABEL "select bridge:"
+#endif
+#define ENABLED_PREF_KEY   "-enabled"
+#define SENTINEL_NAME      "sentinel"
+#define UID_BUFFER_SIZE    256
+#define UID_DELIMITER      "::"
+#define CHANNEL_ID_FMT     "%s"UID_DELIMITER"%s"UID_DELIMITER"%s"
 
 // purple constants
 #define RECEIVED_IM_SIGNAL   "received-im-msg"
@@ -125,24 +150,31 @@ typedef struct Bridge
   struct Bridge* next ;
 } Bridge ;
 
-static PurplePluginInfo PluginInfo ;                    // init pre main()
-static PurplePlugin*    ThisPlugin ;                    // init handlePluginLoaded()
-static PurpleCmdId      CommandIds[N_COMMANDS] ;        // init handlePluginLoaded()
-static Bridge*          SentinelBridge ;                // init handlePluginInit()
-static char             UidBuffer[UID_BUFFER_SIZE] ;    // volatile
-static char             StatusBuffer[UID_BUFFER_SIZE] ; // volatile
-static char             ChatBuffer[CHAT_BUFFER_SIZE] ;  // volatile
+static PurplePluginInfo   PluginInfo ;                    // init pre main()
+#if PREFS_GUI
+static PurplePluginUiInfo PrefsInfo  ;                    // init pre main()
+//static PurplePluginPrefFrame* PrefsFrame ;                 // init initPrefs()
+#endif
+static PurplePlugin*      ThisPlugin ;                    // init handlePluginLoaded()
+static PurpleCmdId        CommandIds[N_COMMANDS] ;        // init handlePluginLoaded()
+static Bridge*            SentinelBridge ;                // init handlePluginInit()
+static char               UidBuffer[UID_BUFFER_SIZE] ;    // volatile
+static char               StatusBuffer[UID_BUFFER_SIZE] ; // volatile
+static char               ChatBuffer[CHAT_BUFFER_SIZE] ;  // volatile
 
 // purple helpers
-PurpleCmdId    registerCmd(   const char* command , const char* format ,
-                              PurpleCmdRet (*callback)() , const char* help) ;
-const char*    getChannelName(PurpleConversation* aConv) ;
-const char*    getProtocol(   PurpleAccount* anAccount) ;
-PurpleAccount* getAccount(    PurpleConversation* aConv) ;
-const char*    getUsername(   PurpleAccount* anAccount) ;
-const char*    getNick(       PurpleAccount* anAccount) ;
-void           alert(         char* msg) ;
-gboolean       isBlank(       const char* aCstring) ;
+#if PREFS_GUI
+PurplePluginPrefFrame* initPrefs(     PurplePlugin* plugin) ;
+#endif
+PurpleCmdId            registerCmd(   const char* command , const char* format ,
+                                      PurpleCmdRet (*callback)() , const char* help) ;
+const char*            getChannelName(PurpleConversation* aConv) ;
+const char*            getProtocol(   PurpleAccount* anAccount) ;
+PurpleAccount*         getAccount(    PurpleConversation* aConv) ;
+const char*            getUsername(   PurpleAccount* anAccount) ;
+const char*            getNick(       PurpleAccount* anAccount) ;
+void                   alert(         char* msg) ;
+gboolean               isBlank(       const char* aCstring) ;
 
 // model helpers
 gboolean     areReservedIds(    char* bridgeName , char* channelUid) ;
@@ -160,6 +192,10 @@ unsigned int getNChannels(      Bridge* aBridge) ;
 void     handlePluginInit(    PurplePlugin* plugin) ;
 gboolean handlePluginLoaded(  PurplePlugin* plugin) ;
 gboolean handlePluginUnloaded(PurplePlugin* plugin) ;
+#if PREFS_GUI
+void     handlePrefChanged(   const char *name , PurplePrefType type ,
+                              gconstpointer val , gpointer data) ;
+#endif
 void     handleChat(          PurpleAccount* anAccount , char* sender ,
                               char* buffer , PurpleConversation* aConv ,
                               PurpleMessageFlags flags , void* data) ;

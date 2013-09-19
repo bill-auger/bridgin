@@ -2,7 +2,7 @@ bridgin changelog
 
 
 2013-09-18 - v0.5pre
-  CURRENT
+  4102a2b311
     reimplemented persistence via purple preferences prefs.xml
 
 2013-09-11 - v0.5pre

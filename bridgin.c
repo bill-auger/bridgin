@@ -1,6 +1,20 @@
-
-
-
+/*\
+|*| This file is part of the Bridgin program
+|*| Copyright 2013-2014 bill-auger <https://github.com/bill-auger/bridgin/issues>
+|*|
+|*| Bridgin is free software: you can redistribute it and/or modify
+|*| it under the terms of the GNU Affero General Public License as published by
+|*| the Free Software Foundation, either version 3 of the License, or
+|*| (at your option) any later version.
+|*|
+|*| Bridgin is distributed in the hope that it will be useful,
+|*| but WITHOUT ANY WARRANTY; without even the implied warranty of
+|*| MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+|*| GNU Affero General Public License for more details.
+|*|
+|*| You should have received a copy of the GNU Affero General Public License
+|*| along with Bridgin.  If not, see <http://www.gnu.org/licenses/>.
+\*/
 
 
 #include "bridgin.h"
@@ -8,6 +22,99 @@
 
 
 /* purple helpers */
+
+#if PREFS_GUI
+PurplePluginPrefFrame* initPrefs(PurplePlugin* plugin)
+{
+  PurplePluginPrefFrame* prefsFrame ; PurplePluginPref* headingPref ;
+  PurplePluginPref* bridgePref ;
+  GList* prefsList ; GList* prefsIter ;
+  char* prefKey ; char* prefName ; PurplePrefType prefType ; unsigned int nChoices = 0 ;
+//PurplePluginPref* enabledPref ;
+
+//PurplePluginPref* channelPref ;
+//  Bridge* aBridge ; Channel* aChannel ;
+
+  prefsFrame = purple_plugin_pref_frame_new() ;
+
+  // header
+  headingPref = purple_plugin_pref_new_with_label(BASE_PREF_LABEL) ;
+  purple_plugin_pref_frame_add(prefsFrame , headingPref) ;
+
+  // bridge select
+  bridgePref = purple_plugin_pref_new_with_name_and_label(BRIDGES_PREF_KEY , BRIDGES_PREF_LABEL) ;
+  purple_plugin_pref_set_type(bridgePref , PURPLE_PLUGIN_PREF_CHOICE) ;
+  purple_plugin_pref_frame_add(prefsFrame , bridgePref) ;
+
+  // bridge select options
+  prefsList = purple_prefs_get_children_names(BASE_PREF_KEY) ;
+  prefsIter = g_list_first(prefsList) ;
+  while (prefsIter)
+  {
+    prefKey = (char*)prefsIter->data ; prefType = purple_prefs_get_type(prefKey) ;
+    if (prefType == PURPLE_PREF_STRING_LIST && (prefName = strrchr(prefKey , '/')))
+      purple_plugin_pref_add_choice(bridgePref , prefName + 1 , prefName + 1) ;
+
+/* TODO: maybe
+    else if (prefType == PURPLE_PREF_BOOL && isSelectedBridge)
+    {
+      // isEnabled checkbox
+      enabledPref = purple_plugin_pref_new_with_name_and_label(prefKey , "enabled") ;
+      purple_plugin_pref_frame_add(prefsFrame , enabledPref) ;
+    }
+*/
+// TODO: The caller must free all the strings and the list returned from purple_prefs_get_children_names()
+    prefsIter = g_list_next(prefsIter) ;
+
+if (prefType == PURPLE_PREF_STRING) DBGs("initPrefs() found string prefKey=" , prefKey) ;
+else if (prefType == PURPLE_PREF_BOOLEAN) DBGs("initPrefs() found bool prefKey=" , prefKey) ;
+else if (prefType == PURPLE_PREF_STRING_LIST) DBGs("initPrefs() found list prefKey=" , prefKey) ;
+  }
+  g_list_free(prefsList) ; g_list_free(prefsIter) ;
+
+  // default select option
+  prefsList = purple_plugin_pref_get_choices(bridgePref) ;
+  prefsIter = g_list_first(prefsList) ;
+  while (prefsIter) { ++nChoices ; prefsIter = g_list_next(prefsIter) ; }
+  if (!nChoices) purple_plugin_pref_add_choice(bridgePref , "no bridges" , "no bridges") ;
+
+/*
+  // channels
+  aBridge = SentinelBridge ;
+  while ((aBridge = aBridge->next))
+  {
+DBGs("initPrefs() aBridge=" , aBridge->name) ;
+
+    purple_plugin_pref_add_choice(bridgePref , aBridge->name , aBridge->name) ;
+    aChannel = aBridge->sentinelChannel ;
+    while ((aChannel = aChannel->next))
+    {
+      unsigned int baseKeyLen = strlen(PREFS_BASE_KEY) ;
+      unsigned int protocolLen = strlen(aChannel->protocol) ;
+      unsigned int usernameLen = strlen(aChannel->username) ;
+      unsigned int channelNameLen = strlen(aChannel->name) ;
+      unsigned int valLen = protocolLen  + 2 + usernameLen  + 2 + channelNameLen + 1 ;
+      unsigned int keyLen = baseKeyLen  + 1 + valLen ;
+      char val[valLen] ; char key[keyLen] ;
+      sprintf(val , "%s::%s::%s" , aChannel->protocol , aChannel->username , aChannel->name) ;
+      sprintf(key , "%s/%s" , PREFS_BASE_KEY , val) ;
+
+DBGsd("initPrefs() protocol=" , aChannel->protocol , " len=" , protocolLen) ;
+DBGsd("initPrefs() username=" , aChannel->username , " len=" , usernameLen) ;
+DBGsd("initPrefs() aChannel=" , aChannel->name , " len=" , channelNameLen) ;
+DBGsd("initPrefs() key=" , key , " len=" , keyLen) ;
+DBGsd("initPrefs() val=" , val , " len=" , valLen) ;
+
+      channelPref = purple_plugin_pref_new_with_name_and_label(CHANNEL_PREF_KEY , "lbl") ;
+      purple_plugin_pref_set_type(channelPref , PURPLE_PLUGIN_PREF_STRING_FORMAT) ;
+      purple_plugin_pref_set_format_type(channelPref , PURPLE_STRING_FORMAT_TYPE_MULTILINE) ;
+      purple_plugin_pref_frame_add(prefsFrame , channelPref) ;
+    }
+  }
+*/
+  return prefsFrame ;
+}
+#endif
 
 PurpleCmdId registerCmd(const char* command , const char* format ,
                         PurpleCmdRet (* callback)() , const char* help)
@@ -45,6 +152,9 @@ gboolean isBlank(const char* aCstring) { return (!aCstring || !*aCstring) ; }
 gboolean areReservedIds(char* bridgeName , char* channelUid)
 {
   return (!strcmp(bridgeName , SENTINEL_NAME) ||
+#if PREFS_GUI
+          !strcmp(bridgeName , BRIDGES_PREF_NAME) ||
+#endif
           !strcmp(channelUid  , SENTINEL_NAME)) ;
 }
 
@@ -179,11 +289,22 @@ unsigned int getNChannels(Bridge* aBridge)
 
 /* event handlers */
 
+#if PREFS_GUI
+void handlePluginInit(PurplePlugin* plugin)
+{
+  purple_prefs_add_none(BASE_PREF_KEY) ;
+  purple_prefs_add_string(BRIDGES_PREF_KEY , BRIDGES_PREF_LABEL) ;
+}
+#else
 void handlePluginInit(PurplePlugin* plugin) { purple_prefs_add_none(BASE_PREF_KEY) ; }
-
+#endif
 gboolean handlePluginLoaded(PurplePlugin* aPlugin)
 {
+#if PREFS_GUI
+  void* prefs ; void* convs ;
+#else
   void* convs ;
+#endif
   GList* prefsList ; GList* prefsIter ; const char* prefKey ; char* bridgeName ;
   GList* channelsList ; GList* channelsIter ;
 
@@ -207,6 +328,12 @@ DBG("handlePluginLoaded()") ;
   CommandIds[10] = registerCmd(STATUS_CMD  , UNARY_FMT  , STATUS_CB , STATUSu_HELP) ;
   CommandIds[11] = registerCmd(STATUS_CMD  , BINARY_FMT , STATUS_CB , STATUSb_HELP) ;
   CommandIds[12] = registerCmd(HELP_CMD    , UNARY_FMT  , HELP_CB   , HELP_HELP) ;
+
+#if PREFS_GUI
+  // register preferences callbacks
+  prefs = purple_prefs_get_handle() ;
+  purple_prefs_connect_callback(prefs , BRIDGES_PREF_KEY , handlePrefChanged , NULL) ;
+#endif
 
   // register conversation callbacks
   convs = purple_conversations_get_handle() ;
@@ -252,7 +379,6 @@ DBGs("handlePluginLoaded() found stored channelUid=" , (char*)channelsIter->data
 
     prefsIter = g_list_next(prefsIter) ;
   }
-
   g_list_foreach(prefsList , (GFunc)g_free , NULL) ;
   g_list_free(prefsList) ; g_list_free(prefsIter) ;
 
@@ -289,6 +415,34 @@ DBG("handlePluginUnloaded()") ;
 
   return TRUE ;
 }
+
+#if PREFS_GUI
+void handlePrefChanged(const char* prefKey , PurplePrefType prefType ,
+                       gconstpointer prefVal , gpointer data)
+{
+  GList* prefsList = purple_prefs_get_children_names(prefKey) ;
+  GList* prefsIter = g_list_first(prefsList) ; char* name ;
+  while (prefsIter)
+  {
+    name = (char*)prefsIter->data ; prefsIter = g_list_next(prefsIter) ;
+DBGss("handlePrefChanged() prefKey=" , prefKey , " child=" , name) ;
+  }
+  g_list_foreach(prefsList , (GFunc)g_free , NULL) ;
+  g_list_free(prefsList) ; g_list_free(prefsIter) ;
+
+  switch (prefType)
+  {
+    case PURPLE_PREF_INT:
+DBGsd("handlePrefChanged() prefKey=" , prefKey , " (PURPLE_PREF_INT) prefVal=" , GPOINTER_TO_INT(prefVal)) ;
+    break ;
+    case PURPLE_PREF_STRING:
+DBGss("handlePrefChanged() prefKey=" , prefKey , " (PURPLE_PREF_STRING) prefVal=" , (char*)prefVal) ;
+    break ;
+    default:
+DBGsd("handlePrefChanged() prefKey=" , prefKey , " (unknown) prefType=" , prefType) ;
+  }
+}
+#endif
 
 void handleChat(PurpleAccount* thisAccount , char* sender , char* msg ,
                 PurpleConversation* thisConv , PurpleMessageFlags flags , void* data)
@@ -669,8 +823,15 @@ static PurplePluginInfo PluginInfo =
   PLUGIN_TYPE , PLUGIN_GUI_TYPE , 0 , NULL , PURPLE_PRIORITY_DEFAULT ,
   PLUGIN_ID , PLUGIN_NAME , PLUGIN_VERSION , PLUGIN_SHORT_DESC , PLUGIN_LONG_DESC ,
   PLUGIN_AUTHOR , PLUGIN_WEBSITE , PLUGIN_ONLOAD_CB , PLUGIN_ONUNLOAD_CB ,
+#if PREFS_GUI
+  NULL , NULL , NULL , &PrefsInfo , NULL , NULL , NULL , NULL , NULL
+#else
   NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL
+#endif
 } ;
 
+#if PREFS_GUI
+static PurplePluginUiInfo PrefsInfo = { initPrefs , 0 , NULL , NULL , NULL , NULL , NULL } ;
+#endif
 
 PURPLE_INIT_PLUGIN(PLUGIN_NAME , handlePluginInit , PluginInfo)
