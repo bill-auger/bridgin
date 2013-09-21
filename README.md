@@ -14,10 +14,9 @@ some new functionalities this will allow:
 * better handling of special forms such as '/me' , smileys , etc ...
 * issuing admin commands in the standard form ('/add' instead of '?/add')
 * painfree installation and automatic loading with pidgin
-* running on a nox box
-* running on a windows box
-
-
+* running on a nox box , windows , or mac
+  
+  
 ##build instructions for debian (ymmv)
 
 cd into your build dir and load the pidgin sources and build deps
@@ -26,9 +25,10 @@ cd into your build dir and load the pidgin sources and build deps
     sudo apt-get build-dep pidgin
 
 cd into ./pidgin-x.x.x/ and build pidgin and finch  
-if you already have pidgin and/or finch installed  
-you can delete this build afterward  
-it is needed only to simplify building the bridgin plugin
+you do not need to install this build  
+it is only used to simplify building the bridgin plugin  
+if you already have pidgin , finch , or adium installed  
+you can delete this entire directory after building the plugin  
 
     cd ./pidgin*
     ./configure

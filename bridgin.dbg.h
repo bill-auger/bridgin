@@ -28,6 +28,9 @@ static void DBGsd(const char* s1 , const char* s2 , const char* s3 , int d1) { i
 
 static void DBGsssss(const char* s1 , const char* s2 , const char* s3 , const char* s4 , const char* s5 , const char* s6 , const char* s7 , const char* s8 , const char* s9 , const char* s10) { if (isBlank(s1)) return ; purple_debug_misc(PLUGIN_NAME , "%s%s%s%s%s%s%s%s%s%s\n" , s1 , s2 , s3 , s4 , s5 , s6 , s7 , s8 , s9 , s10) ; }
 
+static void DBGcmd(const char* command , char* args)
+  { purple_debug_misc(PLUGIN_NAME , "HandleCmd '/%s' args = %s\n" , command , args) ; }
+
 static void DBGchat(char* convType , PurpleAccount* thisAccount , char* sender ,
                     PurpleConversation* thisConv , char* msg , PurpleMessageFlags flags)
 {
@@ -46,7 +49,7 @@ static void DBGchat(char* convType , PurpleAccount* thisAccount , char* sender ,
 
     activeChannelsIter = g_list_next(activeChannelsIter) ;
   }
-  statusBufferPutDS("%d %s" , nChannels , "channels") ;
+  snprintf(ChatBuffer , CHAT_BUFFER_SIZE , "%d %s" , nChannels , "channels") ;
 
   purple_debug_misc(PLUGIN_NAME ,
       "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%d%s%s%s\n" ,
@@ -59,11 +62,5 @@ static void DBGchat(char* convType , PurpleAccount* thisAccount , char* sender ,
       "\n" , ((isLocal)?     "local message - dropping" :
              ((!isRemote)?   "special message - dropping" :
              ((isUnbridged)? "unbridged - dropping" : "relaying to "))) ,
-             ((isRemote && !isUnbridged)? StatusBuffer : "")) ;
+             ((isRemote && !isUnbridged)? ChatBuffer : "")) ;
 }
-
-// static void DBGchannelClosed(PurpleConversation* thisConv)
-//   { purple_debug_misc(PLUGIN_NAME , "deleting-conversation (%s)\n" , purple_conversation_get_name(thisConv)) ; }
-
-static void DBGcmd(const char* command , char* args)
-  { purple_debug_misc(PLUGIN_NAME , "HandleCmd '/%s' args = %s\n" , command , args) ; }

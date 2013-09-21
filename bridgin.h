@@ -23,7 +23,7 @@
 // app constants
 #define BRIDGIN_NICK        "BRIDGIN"
 #define DEFAULT_BRIDGE_NAME "default"
-#define CHAT_OUT_FMT        "%s %s%s %s" 
+#define CHAT_OUT_FMT        "%s %s%s %s"
 #define NICK_PREFIX         "(from" // dont use '<' - some clients will supress it as html
 #define NICK_POSTFIX        ")"
 
@@ -51,7 +51,7 @@
 #define ADDu_HELP     "/ADD_CMD\nadd this channel to the default bridge"
 #define ADDb_HELP     "/ADD_CMD 'a-bridge-name'\nadd this channel to the bridge 'a-bridge-name'"
 #define ADD_CB        handleAddCmd
-#define REMOVE_CMD    "remove"
+#define REMOVE_CMD    "rem"
 #define REMOVE_HELP   "/REMOVE_CMD\nunbridge this channel"
 #define REMOVE_CB     handleRemoveCmd
 #define DISABLE_CMD  "disable"
@@ -85,6 +85,8 @@
 #define CHANNEL_EXISTS_MSG  "already exists on bridge"
 #define BRIDGE_CONFLICT_MSG "each channel may only be on one bridge"
 #define RESERVED_NAME_MSG   "invalid name - not adding"
+#define CHANNEL_REMOVED_MSG "channel removed from bridge"
+#define BRIDGE_REMOVED_MSG  "bridge removed"
 #define THIS_BRIDGE_MSG     "is on bridge"
 #define UNBRIDGED_MSG       "is not bridged"
 #define NO_SUCH_BRIDGE_MSG  "no such bridge"
@@ -114,6 +116,7 @@
 typedef struct Channel
 {
   char            uid[UID_BUFFER_SIZE] ;
+  struct Channel* prev ;
   struct Channel* next ;
 } Channel ;
 
@@ -122,16 +125,18 @@ typedef struct Bridge
   char           name[UID_BUFFER_SIZE] ;
   gboolean       isEnabled ;
   Channel*       sentinelChannel ;
+  struct Bridge* prev ;
   struct Bridge* next ;
 } Bridge ;
 
-static PurplePluginInfo PluginInfo ;                    // init pre main()
-static PurplePlugin*    ThisPlugin ;                    // init handlePluginLoaded()
-static PurpleCmdId      CommandIds[N_COMMANDS] ;        // init handlePluginLoaded()
-static Bridge*          SentinelBridge ;                // init handlePluginInit()
-static char             UidBuffer[UID_BUFFER_SIZE] ;    // volatile
-static char             StatusBuffer[UID_BUFFER_SIZE] ; // volatile
-static char             ChatBuffer[CHAT_BUFFER_SIZE] ;  // volatile
+static PurplePluginInfo PluginInfo ;                        // init pre main()
+static PurplePlugin*    ThisPlugin ;                        // init handlePluginLoaded()
+static PurpleCmdId      CommandIds[N_COMMANDS] ;            // init handlePluginLoaded()
+static Bridge*          SentinelBridge ;                    // init handlePluginLoaded()
+static char             BridgeKeyBuffer[UID_BUFFER_SIZE] ;  // volatile
+static char             EnabledKeyBuffer[UID_BUFFER_SIZE] ; // volatile
+static char             ChannelUidBuffer[UID_BUFFER_SIZE] ; // volatile
+static char             ChatBuffer[CHAT_BUFFER_SIZE] ;      // volatile
 
 // purple helpers
 PurpleCmdId    registerCmd(   const char* command , const char* format ,
@@ -140,17 +145,17 @@ const char*    getChannelName(PurpleConversation* aConv) ;
 const char*    getProtocol(   PurpleAccount* anAccount) ;
 PurpleAccount* getAccount(    PurpleConversation* aConv) ;
 const char*    getUsername(   PurpleAccount* anAccount) ;
-const char*    getNick(       PurpleAccount* anAccount) ;
 void           alert(         char* msg) ;
-gboolean       isBlank(       const char* aCstring) ;
 
 // model helpers
+gboolean     doesBridgeExist(   Bridge* aBridge) ;
 gboolean     areReservedIds(    char* bridgeName , char* channelUid) ;
-gboolean     isReservedId(      char* aCstring) ;
-Bridge*      newBridge(         char* bridgeName) ;
-Channel*     newChannel(        void) ;
-void         makeChannelId(     PurpleConversation* aConv) ;
-gboolean     addChannel(        char* bridgeName) ;
+void         prepareBridgeKeys( char* bridgeName) ;
+void         prepareChannelUid( PurpleConversation* aConv) ;
+Bridge*      newBridge(         char* bridgeName , Bridge* prevBridge) ;
+Channel*     newChannel(        Channel* prevChannel) ;
+gboolean     createChannel(     char* bridgeName) ;
+void         destroyChannel(    Bridge* aBridge , PurpleConversation* aConv) ;
 Bridge*      getBridgeByChannel(PurpleConversation* aConv) ;
 Bridge*      getBridgeByName(   const char* bridgeName) ;
 unsigned int getNBridges(       void) ;
@@ -186,29 +191,36 @@ PurpleCmdRet handleHelpCmd(     PurpleConversation* aConv , const gchar* cmd ,
 // NOTE: callers of channelStateMsg() or bridgeStatsMsg()
 //    should first initialize ChatBuffer using one of the text buffer helpers
 //    then eventually call chatBufferDump() to flush to screen
-void chatBufferDump( PurpleConversation* aConv) ;
-void addResp(        PurpleConversation* aConv , char* bridgeName) ;
-void addExistsResp(  PurpleConversation* aConv , char* bridgeName) ;
-void addConflictResp(PurpleConversation* aConv) ;
-void addReservedResp(PurpleConversation* aConv) ;
-void addFailResp(    PurpleConversation* aConv) ;
-void statusResp(     PurpleConversation* aConv , char* bridgeName) ;
-void channelStateMsg(PurpleConversation* aConv) ;
-void bridgeStatsMsg( const char* bridgeName) ;
+void chatBufferDump(     PurpleConversation* aConv) ;
+void addResp(            PurpleConversation* aConv , char* thisBridgeName) ;
+void addExistsResp(      PurpleConversation* aConv , char* thisBridgeName) ;
+void addConflictResp(    PurpleConversation* aConv) ;
+void addReservedResp(    PurpleConversation* aConv) ;
+void addFailResp(        PurpleConversation* aConv) ;
+void removeResp(         PurpleConversation* thisConv , char* thisBridgeName) ;
+void removeUnbridgedResp(PurpleConversation* thisConv) ;
+void statusResp(         PurpleConversation* aConv , char* bridgeName) ;
+void channelStateMsg(    PurpleConversation* aConv) ;
+void bridgeStatsMsg(     const char* bridgeName) ;
 
 // text buffer helpers
-void uidBufferPutS(     const char* fmt , const char* s1) ;
-void uidBufferPutSS(    const char* fmt , const char* s1 , const char* s2) ;
-void uidBufferPutSSS(   const char* fmt , const char* s1 , const char* s2 , const char* s3) ;
-void statusBufferPutS(  const char* fmt , const char* s1) ;
-void statusBufferPutSS( const char* fmt , const char* s1 , const char* s2) ;
-void statusBufferPutDS( const char* fmt , int d1 , const char* s1) ;
-void statusBufferPutSSS(const char* fmt , const char* s1 , const char* s2 , const char* s3) ;
-void chatBufferInit(    void) ;
-void chatBufferPutS(    const char* fmt , const char* s1) ;
-void chatBufferPutSS(   const char* fmt , const char* s1 , const char* s2) ;
-void chatBufferPutSSS(  const char* fmt , const char* s1 , const char* s2 , const char* s3) ;
-void chatBufferPutSDS(  const char* fmt , const char* s1 , int d1 , const char* s2) ;
-void chatBufferPutSSSS( const char* fmt , const char* s1 , const char* s2 ,
-                        const char* s3 , const char* s4) ;
-void chatBufferCat(     const char* msg) ;
+gboolean isBlank(             const char* aCstring) ;
+void     channelUidBufferPutS(const char* fmt , const char* s1) ;
+void     channelUidBufferPutD(const char* fmt , int d1) ;
+void     chatBufferInit(      void) ;
+void     chatBufferPutS(      const char* fmt , const char* s1) ;
+void     chatBufferPutSS(     const char* fmt , const char* s1 , const char* s2) ;
+void     chatBufferPutSSS(    const char* fmt , const char* s1 , const char* s2 ,
+                              const char* s3) ;
+void     chatBufferPutSDS(    const char* fmt , const char* s1 , int d1 , const char* s2) ;
+void     chatBufferPutSSSS(   const char* fmt , const char* s1 , const char* s2 ,
+                              const char* s3 , const char* s4) ;
+void     chatBufferCat(       const char* s) ;
+void     chatBufferCatSS(     const char* s1 , const char* s2) ;
+void     chatBufferCatSSS(    const char* s1 , const char* s2 , const char* s3) ;
+void     chatBufferCatSSSS(   const char* s1 , const char* s2 , const char* s3 ,
+                              const char* s4) ;
+void     chatBufferCatSSSSS(  const char* s1 , const char* s2 , const char* s3 ,
+                              const char* s4 , const char* s5) ;
+void     chatBufferCatSSSSSS( const char* s1 , const char* s2 , const char* s3 ,
+                              const char* s4 , const char* s5 , const char* s6) ;
