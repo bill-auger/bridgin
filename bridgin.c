@@ -23,6 +23,49 @@ PurpleAccount* getAccount(PurpleConversation* aConv)
 const char* getUsername(PurpleAccount* anAccount)
   { return purple_account_get_username(anAccount) ; }
 
+const char* getNick(PurpleConversation* aConv)
+  { return purple_account_get_name_for_display(getAccount(aConv)) ; }
+
+unsigned int getNRelayChannels(Bridge* thisBridge , PurpleConversation* thisConv)
+{
+  GList* activeChannelsIter ; PurpleConversation* aConv ; unsigned int nChannels ;
+
+  activeChannelsIter = g_list_first(purple_get_conversations()) ; nChannels = 0 ;
+  while (activeChannelsIter)
+  {
+    aConv = (PurpleConversation*)activeChannelsIter->data ;
+    if (aConv != thisConv && getBridgeByChannel(aConv) == thisBridge) ++nChannels ;
+    activeChannelsIter = g_list_next(activeChannelsIter) ;
+  }
+  return nChannels ;
+}
+
+void relayMessage(Bridge* outputBridge , PurpleConversation* inputConv)
+{
+// NOTE: inputConv will be excluded from the relay - pass in NULL to include it
+
+  GList* activeChannelsIter = NULL ; PurpleConversation* aConv ; unsigned int convType ;
+
+  activeChannelsIter = g_list_first(purple_get_conversations()) ;
+  while (activeChannelsIter)
+  {
+#ifdef DEBUG_VB
+DBGss("relayMessage() got active channelName='" , getChannelName((PurpleConversation*)activeChannelsIter->data) , (((PurpleConversation*)activeChannelsIter->data == thisConv)? " isThisChannel - skipping" : ((getBridgeByChannel((PurpleConversation*)activeChannelsIter->data) == thisBridge)? "' isThisBridge - relaying" : "' notThisBridge - skipping" )) , "") ;
+#endif
+
+    aConv = (PurpleConversation*)activeChannelsIter->data ;
+    if (aConv != inputConv && getBridgeByChannel(aConv) == outputBridge)
+    {
+      convType = purple_conversation_get_type(aConv) ;
+      if (convType == PURPLE_CONV_TYPE_IM)
+        purple_conv_im_send(purple_conversation_get_im_data(aConv) , ChatBuffer) ;
+      else if (convType == PURPLE_CONV_TYPE_CHAT)
+        purple_conv_chat_send(purple_conversation_get_chat_data(aConv) , ChatBuffer) ;
+    }
+    activeChannelsIter = g_list_next(activeChannelsIter) ;
+  }
+}
+
 void alert(char* msg)
 {
   purple_notify_message(ThisPlugin , PURPLE_NOTIFY_MSG_INFO , msg ,
@@ -173,7 +216,7 @@ DBGss("createChannel() bridgeName='" , bridgeName , "'" , "") ;
     aBridge->next = newBridge(bridgeName , aBridge , isEnabled) ;
     if (!(aBridge = aBridge->next)) return FALSE ;
 
-    // store config
+    // store bridge
     if (!doesConfigExist)
     {
       purple_prefs_add_bool(EnabledKeyBuffer , TRUE) ;
@@ -190,7 +233,7 @@ DBGss("createChannel() added new bridgeKey='" , BridgeKeyBuffer , "'" , "") ;
   aChannel->next = newChannel(aChannel) ;
   if (!aChannel->next) { g_list_free(channelsList) ; return FALSE ; }
 
-  // store config
+  // store channels
   channelsList = g_list_prepend(channelsList , (gpointer)ChannelUidBuffer) ;
   purple_prefs_set_string_list(BridgeKeyBuffer , channelsList) ;
 
@@ -211,7 +254,7 @@ DBGsss("destroyChannel() removing channel='" , getChannelName(aConv) , "' from b
     if (!strcmp(aChannel->uid , ChannelUidBuffer))
       { aChannel->prev->next = aChannel->next ; free(aChannel) ; }
 
-  // store bridge config
+  // remove channel from store
   prepareBridgeKeys(aBridge->name) ;
   channelsList = purple_prefs_get_string_list(BridgeKeyBuffer) ;
   channelsIter = g_list_first(channelsList) ;
@@ -223,18 +266,17 @@ DBGsss("destroyChannel() removing channel='" , getChannelName(aConv) , "' from b
     }
     else channelsIter = g_list_next(channelsIter) ;
   purple_prefs_set_string_list(BridgeKeyBuffer , channelsList) ;
+  g_list_free(channelsList) ; g_list_free(channelsIter) ;
 
-  // destroy empty bridge struct and preference keys
-  if (!g_list_length(channelsList))
+  // destroy empty bridge struct and storage
+  if (!getNChannels(aBridge))
   {
     aBridge->prev->next = aBridge->next ; free(aBridge) ;
     purple_prefs_remove(BridgeKeyBuffer) ; purple_prefs_remove(EnabledKeyBuffer) ;
   }
-
-  g_list_free(channelsList) ; g_list_free(channelsIter) ;
 }
 
-void enableBridge(Bridge* aBridge , gboolean shouldEnable) // TODO: move this
+void enableBridge(Bridge* aBridge , gboolean shouldEnable)
 {
   if (aBridge->isEnabled == shouldEnable) return ;
 
@@ -367,8 +409,7 @@ DBG("handlePluginUnloaded()") ;
 gboolean handleChat(PurpleAccount* thisAccount , char** sender , char** msg ,
                     PurpleConversation* thisConv , PurpleMessageFlags* flags , void* data)
 {
-  GList* activeChannelsIter = NULL ;
-  Bridge* thisBridge ; PurpleConversation* aConv ; unsigned int convType ;
+  Bridge* thisBridge ;
 
 #ifdef DEBUG_CHAT // NOTE: DBGchat() should mirror changes to logic here
 if (thisConv) DBGchat(thisAccount , *sender , thisConv , *msg , *flags) ;
@@ -383,29 +424,8 @@ if (thisConv) DBGchat(thisAccount , *sender , thisConv , *msg , *flags) ;
   if (!doesBridgeExist(thisBridge))    return FALSE ; // input channel is unbridged
   if (!thisBridge->isEnabled)          return FALSE ; // input channel bridge is disabled
 
-  chatBufferPutSSSS(CHAT_OUT_FMT , NICK_PREFIX , *sender , NICK_POSTFIX , *msg) ;
-
-  // relay chat to all opened channels on this bridge
-  activeChannelsIter = g_list_first(purple_get_conversations()) ;
-  while (activeChannelsIter)
-  {
-#ifdef DEBUG_VB
-DBGss("handleChat() got active channelName='" , getChannelName((PurpleConversation*)activeChannelsIter->data) , (((PurpleConversation*)activeChannelsIter->data == thisConv)? " isThisChannel - skipping" : ((getBridgeByChannel((PurpleConversation*)activeChannelsIter->data) == thisBridge)? "' isThisBridge - relaying" : "' notThisBridge - skipping" )) , "") ;
-#endif
-
-    aConv = (PurpleConversation*)activeChannelsIter->data ;
-    if (aConv != thisConv && getBridgeByChannel(aConv) == thisBridge)
-    {
-      convType = purple_conversation_get_type(aConv) ;
-      if (convType == PURPLE_CONV_TYPE_IM)
-        purple_conv_im_send(purple_conversation_get_im_data(aConv) , ChatBuffer) ;
-      else if (convType == PURPLE_CONV_TYPE_CHAT)
-        purple_conv_chat_send(purple_conversation_get_chat_data(aConv) , ChatBuffer) ;
-    }
-
-    activeChannelsIter = g_list_next(activeChannelsIter) ;
-  }
-  chatBufferClear() ;
+  prepareRelayChat(NICK_PREFIX , *sender , *msg) ;
+  relayMessage(thisBridge , thisConv) ; chatBufferClear() ;
 
   return FALSE ;
 }
@@ -488,13 +508,24 @@ PurpleCmdRet handleEchoCmd(PurpleConversation* thisConv , const gchar* command ,
 {
 DBGcmd(command , args[0]) ;
 
+  prepareRelayChat(NICK_PREFIX , getNick(thisConv) , *args) ; chatBufferDump(thisConv) ;
+
   return PURPLE_CMD_RET_OK ;
 }
 
 PurpleCmdRet handleChatCmd(PurpleConversation* thisConv , const gchar* command ,
                            gchar** args , gchar** error , void* data)
 {
+  Bridge* thisBridge ;
+
 DBGcmd(command , args[0]) ;
+
+  if (doesBridgeExist(thisBridge = getBridgeByChannel(thisConv)))
+  {
+    prepareRelayChat(NICK_PREFIX , getNick(thisConv) , *args) ;
+    relayMessage(thisBridge , NULL) ; chatBufferClear() ;
+  }
+  else channelStateMsg(thisConv) ;
 
   return PURPLE_CMD_RET_OK ;
 }
@@ -502,7 +533,14 @@ DBGcmd(command , args[0]) ;
 PurpleCmdRet handleBroadcastCmd(PurpleConversation* thisConv , const gchar* command ,
                                 gchar** args , gchar** error , void* data)
 {
+  Bridge* aBridge ;
+
 DBGcmd(command , args[0]) ;
+
+  broadcastResp(thisConv) ;
+
+  aBridge = SentinelBridge ; prepareRelayChat(BCAST_PREFIX , getNick(thisConv) , *args) ;
+  while ((aBridge = aBridge->next)) relayMessage(aBridge , NULL) ; chatBufferClear() ;
 
   return PURPLE_CMD_RET_OK ;
 }
@@ -527,7 +565,7 @@ DBGcmd(command , args[0]) ;
 
 void addResp(PurpleConversation* thisConv , char* thisBridgeName)
 {
-  chatBufferPutSS("%s '%s'" , CH_SET_MSG , thisBridgeName) ;
+  chatBufferPutSS("%s '%s'\n\n" , CH_SET_MSG , thisBridgeName) ;
   bridgeStatsMsg(thisBridgeName) ; chatBufferDump(thisConv) ;
 }
 
@@ -538,24 +576,19 @@ void addExistsResp(PurpleConversation* thisConv , char* thisBridgeName)
 }
 
 void addConflictResp(PurpleConversation* thisConv)
-{
-  chatBufferPutS("%s" , BRIDGE_CONFLICT_MSG) ; chatBufferDump(thisConv) ;
-}
+  { chatBufferPut(BRIDGE_CONFLICT_MSG) ; chatBufferDump(thisConv) ; }
 
 void addReservedResp(PurpleConversation* thisConv)
-{
-  chatBufferPutS("%s" , RESERVED_NAME_MSG) ; chatBufferDump(thisConv) ;
-}
+  { chatBufferPut(RESERVED_NAME_MSG) ; chatBufferDump(thisConv) ; }
 
 void addFailResp(PurpleConversation* thisConv)
-{
-  chatBufferPutS("%s" , OOM_MSG) ; chatBufferDump(thisConv) ;
-}
+  { chatBufferPut(OOM_MSG) ; chatBufferDump(thisConv) ; }
 
 void removeResp(PurpleConversation* thisConv , char* thisBridgeName)
 {
   chatBufferPutSS("%s '%s'" , CHANNEL_REMOVED_MSG , thisBridgeName) ;
-  if (doesBridgeExist(getBridgeByName(thisBridgeName))) bridgeStatsMsg(thisBridgeName) ;
+  if (doesBridgeExist(getBridgeByName(thisBridgeName)))
+    { chatBufferCat("\n\n") ; bridgeStatsMsg(thisBridgeName) ; }
   else { chatBufferCatSSSS("\n'" , thisBridgeName , "' " , BRIDGE_REMOVED_MSG) ; }
   chatBufferDump(thisConv) ;
 }
@@ -567,7 +600,7 @@ void enableNoneResp(PurpleConversation* thisConv , char* bridgeName)
   {  bridgeStatsMsg(bridgeName) ; chatBufferDump(thisConv) ; }
 
 void enableAllResp(PurpleConversation* thisConv , gboolean shouldEnable)
-  { chatBufferPutS("%s" , ((shouldEnable)? ENABLING_ALL_MSG : DISABLING_ALL_MSG)) ; }
+  { chatBufferPut(((shouldEnable)? ENABLING_ALL_MSG : DISABLING_ALL_MSG)) ; }
 
 void enableResp(PurpleConversation* thisConv , char* bridgeName , gboolean shouldEnable)
 {
@@ -576,34 +609,23 @@ void enableResp(PurpleConversation* thisConv , char* bridgeName , gboolean shoul
   chatBufferDump(thisConv) ;
 }
 
-/* TODO: the remaining admin commands and responses
-function echoResp($nick , $msg)
-  { global $NICK_PREFIX ; return chatOut($NICK_PREFIX , $nick , $msg) ; }
-
-function chatResp() { return "" ; }
-
-function chatUnbridgedResp($accountId , $channelId)
-  { return channelStateMsg($accountId , $channelId) ; }
-
-function broadcastResp($channels)
+void broadcastResp(PurpleConversation* thisConv)
 {
-  global $BROADCAST_MSGa , $BROADCAST_MSGb ;
-  return $BROADCAST_MSGa . (nActiveChannels($channels) - 1) . $BROADCAST_MSGb ;
+  Bridge* aBridge ; unsigned int nChannels = 0 ;
+
+  aBridge = SentinelBridge ;
+  while ((aBridge = aBridge->next)) nChannels += getNRelayChannels(aBridge , NULL) ;
+  if (!nChannels) chatBufferPut(NO_BRIDGES_MSG) ;
+  else chatBufferPutSDS("%s %d %s" , BROADCAST_MSGa , nChannels , BROADCAST_MSGb) ;
+  chatBufferDump(thisConv) ;
 }
 
+/* TODO: the remaining admin commands and responses
 function helpResp()
 {
   global $HELP_MSG , $HELP_MSGS ; $resp = $HELP_MSG ;
   foreach ($HELP_MSGS as $trigger => $desc) $resp .= "\n$trigger\n\t=> $desc" ;
   return $resp ;
-}
-
-function exitResp() { global $EXIT_MSG ; return $EXIT_MSG ; }
-
-function defaultResp()
-{
-  global $UNKNOWN_MSG , $TRIGGER_PREFIX ;
-  return "$UNKNOWN_MSG '$TRIGGER_PREFIX$trigger'" ;
 }
 */
 
@@ -615,17 +637,16 @@ void statusResp(PurpleConversation* thisConv , char* bridgeName)
 if (!nBridges) DBGs("statusResp() no bridges") ; else if (isBlank(bridgeName)) DBGs("statusResp() bridge unspecified - listing all") ; else DBGs("statusResp() bridgeName='" , bridgeName , "'" , "") ;
 #endif
 
-  if (!nBridges)                 bridgeStatsMsg("") ;
-  else if (!isBlank(bridgeName)) bridgeStatsMsg(bridgeName) ;
-  else
-  {
-    chatBufferPutSDS("%s %d %s" , STATS_MSGa , getNBridges() , STATS_MSGb) ;
+  aBridge = SentinelBridge ; nBridges = getNBridges() ;
 
-    aBridge = SentinelBridge ;
-    while ((aBridge = aBridge->next)) bridgeStatsMsg(aBridge->name) ;
-  }
-  if (nBridges) { chatBufferCat("\n\n") ; channelStateMsg(thisConv) ; }
-  chatBufferDump(thisConv) ;
+  chatBufferPutSDS("%s %d %s" , STATS_MSGa , nBridges , STATS_MSGb) ;
+  if (nBridges) chatBufferCat("\n\n") ; else { chatBufferDump(thisConv) ; return ; }
+
+  if (!isBlank(bridgeName)) bridgeStatsMsg(bridgeName) ;
+  else while ((aBridge = aBridge->next))
+      { bridgeStatsMsg(aBridge->name) ; chatBufferCat("\n\n") ; }
+
+  channelStateMsg(thisConv) ; chatBufferDump(thisConv) ;
 }
 
 void channelStateMsg(PurpleConversation* thisConv)
@@ -653,11 +674,10 @@ void bridgeStatsMsg(const char* bridgeName)
   char* activeMsg ; char* protocol ; char* username ; const char* channelName ;
   char* network ; char nick[UID_BUFFER_SIZE] ;
 
-  chatBufferCat("\n\n") ;
   if (!doesBridgeExist(aBridge = getBridgeByName(bridgeName)))
   {
-    if (!getNBridges()) chatBufferCatSS(NO_BRIDGES_MSG , "\n") ;
-    else chatBufferCatSSSS(NO_SUCH_BRIDGE_MSG , " '" , bridgeName , "'\n") ;
+    if (!getNBridges()) chatBufferCatSS(NO_BRIDGES_MSG , "") ;
+    else chatBufferCatSSSS(NO_SUCH_BRIDGE_MSG , " '" , bridgeName , "'") ;
     return ;
   }
   else chatBufferCatSSSS(STATS_MSGc , " '" , bridgeName , "' - ") ;
@@ -731,8 +751,8 @@ void channelUidBufferPutD(const char* fmt , int d1)
 
 void chatBufferClear() { ChatBuffer[0] = '\0' ; }
 
-void chatBufferPutS(   const char* fmt , const char* s1)
-  { snprintf(ChatBuffer , CHAT_BUFFER_SIZE , fmt , s1) ; }
+void chatBufferPut(    const char* s)
+  { snprintf(ChatBuffer , CHAT_BUFFER_SIZE , "%s" , s) ; }
 
 void chatBufferPutSS(  const char* fmt , const char* s1 , const char* s2)
   { snprintf(ChatBuffer , CHAT_BUFFER_SIZE , fmt , s1 , s2) ; }
@@ -769,6 +789,9 @@ void chatBufferCatSSSSSS(const char* s1 , const char* s2 , const char* s3 ,
                          const char* s4 , const char* s5 , const char* s6)
   { chatBufferCat(s1) ; chatBufferCat(s2) ; chatBufferCat(s3) ; chatBufferCat(s4) ;
     chatBufferCat(s5) ; chatBufferCat(s6) ; }
+
+void prepareRelayChat(char* prefix , const char* sender , char* msg)
+  { chatBufferPutSSSS(CHAT_OUT_FMT , prefix , sender , NICK_POSTFIX , msg) ; }
 
 void chatBufferDump(PurpleConversation* thisConv)
 {

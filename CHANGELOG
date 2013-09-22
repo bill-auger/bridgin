@@ -1,8 +1,12 @@
 bridgin changelog
 
 
-2013-09-21 - v0.5pre
+2013-09-22 - v0.5pre
   CURRENT
+    reimplemented echo , chat , and broadcast commands
+
+2013-09-21 - v0.5pre
+  aff1a426a2
     reimplemented disable/enable bridge commands
 
 2013-09-21 - v0.5pre

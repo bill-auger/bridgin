@@ -26,6 +26,7 @@
 #define CHAT_OUT_FMT        "%s %s%s %s"
 #define NICK_PREFIX         "(from" // dont use '<' - some clients will supress it as html
 #define NICK_POSTFIX        ")"
+#define BCAST_PREFIX        "(BROADCAST from"
 
 // purple constants
 #define RECEIVING_IM_SIGNAL   "receiving-im-msg"
@@ -63,13 +64,13 @@
 #define ENABLEb_HELP  "/ENABLE_CMD 'a-bridge-name'\nenable the bridge 'a-bridge-name'"
 #define ENABLE_CB     handleEnableCmd
 #define ECHO_CMD      "echo"
-#define ECHO_HELP     "/ECHO_CMD\necho text to the same channel"
+#define ECHO_HELP     "/ECHO_CMD\necho formatted text locally"
 #define ECHO_CB       handleEchoCmd
 #define CHAT_CMD      "chat"
 #define CHAT_HELP     "/CHAT_CMD\nrelay text to the all channels on this bridge"
 #define CHAT_CB       handleChatCmd
 #define BCAST_CMD     "broadcast"
-#define BCAST_HELP    "/BCAST_CMD\nrelay text to the all channels on all bridges as BRIDGIN_NICK"
+#define BCAST_HELP    "/BCAST_CMD\nrelay text to the all channels on all bridges"
 #define BCAST_CB      handleBroadcastCmd
 #define STATUS_CMD   "status"
 #define STATUSu_HELP  "/STATUS_CMD\nshow status information for all bridges"
@@ -93,6 +94,8 @@
 #define ENABLE_MSG          "bridge"
 #define ENABLED_MSG         "is enabled"
 #define DISABLED_MSG        "is disabled"
+#define BROADCAST_MSGa      "broadcasting message on"
+#define BROADCAST_MSGb      "channels"
 #define THIS_BRIDGE_MSG     "is on bridge"
 #define UNBRIDGED_MSG       "is not bridged"
 #define NO_SUCH_BRIDGE_MSG  "no such bridge"
@@ -135,6 +138,8 @@ typedef struct Bridge
   struct Bridge* next ;
 } Bridge ;
 
+
+// global vars
 static PurplePluginInfo PluginInfo ;                        // init pre main()
 static PurplePlugin*    ThisPlugin ;                        // init handlePluginLoaded()
 static PurpleCmdId      CommandIds[N_COMMANDS] ;            // init handlePluginLoaded()
@@ -144,14 +149,20 @@ static char             EnabledKeyBuffer[UID_BUFFER_SIZE] ; // volatile
 static char             ChannelUidBuffer[UID_BUFFER_SIZE] ; // volatile
 static char             ChatBuffer[CHAT_BUFFER_SIZE] ;      // volatile
 
+
+/* model-like functions */
+
 // purple helpers
-PurpleCmdId    registerCmd(   const char* command , const char* format ,
-                              PurpleCmdRet (*callback)() , const char* help) ;
-const char*    getChannelName(PurpleConversation* aConv) ;
-const char*    getProtocol(   PurpleAccount* anAccount) ;
-PurpleAccount* getAccount(    PurpleConversation* aConv) ;
-const char*    getUsername(   PurpleAccount* anAccount) ;
-void           alert(         char* msg) ;
+PurpleCmdId    registerCmd(      const char* command , const char* format ,
+                                 PurpleCmdRet (*callback)() , const char* help) ;
+const char*    getChannelName(   PurpleConversation* aConv) ;
+const char*    getProtocol(      PurpleAccount* anAccount) ;
+PurpleAccount* getAccount(       PurpleConversation* aConv) ;
+const char*    getUsername(      PurpleAccount* anAccount) ;
+const char*    getNick(          PurpleConversation* aConv) ;
+unsigned int   getNRelayChannels(Bridge* thisBridge , PurpleConversation* thisConv) ;
+void           relayMessage(     Bridge* outputBridge , PurpleConversation* inputConv) ;
+void           alert(            char* msg) ;
 
 // model helpers
 Bridge*      getBridgeByChannel(PurpleConversation* aConv) ;
@@ -170,6 +181,9 @@ Channel*     newChannel(        Channel* prevChannel) ;
 gboolean     createChannel(     char* bridgeName) ;
 void         destroyChannel(    Bridge* aBridge , PurpleConversation* aConv) ;
 void         enableBridge(      Bridge* aBridge , gboolean isEnable) ;
+
+
+/* controller-like functions */
 
 // event handlers
 void     handlePluginInit(    PurplePlugin* plugin) ;
@@ -197,10 +211,12 @@ PurpleCmdRet handleStatusCmd(   PurpleConversation* aConv , const gchar* cmd ,
 PurpleCmdRet handleHelpCmd(     PurpleConversation* aConv , const gchar* cmd ,
                                 gchar** args , gchar** error , void* data) ;
 
+
+/* view-like functions */
+
 // admin command responses
 // NOTE: callers of channelStateMsg() or bridgeStatsMsg()
 //    should eventually call chatBufferDump() to flush to screen
-void chatBufferDump(     PurpleConversation* aConv) ;
 void addResp(            PurpleConversation* aConv , char* thisBridgeName) ;
 void addExistsResp(      PurpleConversation* aConv , char* thisBridgeName) ;
 void addConflictResp(    PurpleConversation* aConv) ;
@@ -212,6 +228,7 @@ void enableNoneResp(     PurpleConversation* thisConv , char* bridgeName) ;
 void enableAllResp(      PurpleConversation* thisConv , gboolean shouldEnable) ;
 void enableResp(         PurpleConversation* thisConv , char* bridgeName ,
                          gboolean shouldEnable) ;
+void broadcastResp(      PurpleConversation* thisConv) ;
 void statusResp(         PurpleConversation* aConv , char* bridgeName) ;
 void channelStateMsg(    PurpleConversation* aConv) ;
 void bridgeStatsMsg(     const char* bridgeName) ;
@@ -221,7 +238,7 @@ gboolean isBlank(             const char* aCstring) ;
 void     channelUidBufferPutS(const char* fmt , const char* s1) ;
 void     channelUidBufferPutD(const char* fmt , int d1) ;
 void     chatBufferClear(     void) ;
-void     chatBufferPutS(      const char* fmt , const char* s1) ;
+void     chatBufferPut(       const char* s) ;
 void     chatBufferPutSS(     const char* fmt , const char* s1 , const char* s2) ;
 void     chatBufferPutSSS(    const char* fmt , const char* s1 , const char* s2 ,
                               const char* s3) ;
@@ -237,3 +254,5 @@ void     chatBufferCatSSSSS(  const char* s1 , const char* s2 , const char* s3 ,
                               const char* s4 , const char* s5) ;
 void     chatBufferCatSSSSSS( const char* s1 , const char* s2 , const char* s3 ,
                               const char* s4 , const char* s5 , const char* s6) ;
+void     prepareRelayChat(    char* prefix , const char* sender , char* msg) ;
+void     chatBufferDump(      PurpleConversation* thisConv) ;
