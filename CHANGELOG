@@ -3,6 +3,10 @@ bridgin changelog
 
 2013-09-21 - v0.5pre
   CURRENT
+    reimplemented disable/enable bridge commands
+
+2013-09-21 - v0.5pre
+  69c1ac69f0
     reimplemented remove channel command and properly free heap resources
 
 2013-09-18 - v0.5pre

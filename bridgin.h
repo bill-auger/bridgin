@@ -27,6 +27,11 @@
 #define NICK_PREFIX         "(from" // dont use '<' - some clients will supress it as html
 #define NICK_POSTFIX        ")"
 
+// purple constants
+#define RECEIVING_IM_SIGNAL   "receiving-im-msg"
+#define RECEIVING_CHAT_SIGNAL "receiving-chat-msg"
+#define IRC_PROTOCOL         "IRC"
+
 // model constants
 #define BRIDGE_PREF_FMT  "%s/%s"
 #define ENABLED_PREF_FMT "%s%s"
@@ -37,11 +42,6 @@
 #define UID_BUFFER_SIZE  256
 #define UID_DELIMITER    "::"
 #define CHANNEL_ID_FMT   "%s"UID_DELIMITER"%s"UID_DELIMITER"%s"
-
-// purple constants
-#define RECEIVED_IM_SIGNAL   "received-im-msg"
-#define RECEIVED_CHAT_SIGNAL "received-chat-msg"
-#define IRC_PROTOCOL         "IRC"
 
 // admin commands
 #define N_COMMANDS    13
@@ -57,6 +57,7 @@
 #define DISABLE_CMD  "disable"
 #define DISABLEu_HELP "/DISABLE_CMD\ntemporarily disable all bridges"
 #define DISABLEb_HELP "/DISABLE_CMD 'a-bridge-name'\ntemporarily disable the bridge 'a-bridge-name'"
+#define DISABLE_CB    handleEnableCmd
 #define ENABLE_CMD   "enable"
 #define ENABLEu_HELP  "/ENABLE_CMD\nenable all bridges"
 #define ENABLEb_HELP  "/ENABLE_CMD 'a-bridge-name'\nenable the bridge 'a-bridge-name'"
@@ -87,6 +88,11 @@
 #define RESERVED_NAME_MSG   "invalid name - not adding"
 #define CHANNEL_REMOVED_MSG "channel removed from bridge"
 #define BRIDGE_REMOVED_MSG  "bridge removed"
+#define ENABLING_ALL_MSG    "enabling all bridges"
+#define DISABLING_ALL_MSG   "disabling all bridges"
+#define ENABLE_MSG          "bridge"
+#define ENABLED_MSG         "is enabled"
+#define DISABLED_MSG        "is disabled"
 #define THIS_BRIDGE_MSG     "is on bridge"
 #define UNBRIDGED_MSG       "is not bridged"
 #define NO_SUCH_BRIDGE_MSG  "no such bridge"
@@ -148,26 +154,30 @@ const char*    getUsername(   PurpleAccount* anAccount) ;
 void           alert(         char* msg) ;
 
 // model helpers
-gboolean     doesBridgeExist(   Bridge* aBridge) ;
-gboolean     areReservedIds(    char* bridgeName , char* channelUid) ;
-void         prepareBridgeKeys( char* bridgeName) ;
-void         prepareChannelUid( PurpleConversation* aConv) ;
-Bridge*      newBridge(         char* bridgeName , Bridge* prevBridge) ;
-Channel*     newChannel(        Channel* prevChannel) ;
-gboolean     createChannel(     char* bridgeName) ;
-void         destroyChannel(    Bridge* aBridge , PurpleConversation* aConv) ;
 Bridge*      getBridgeByChannel(PurpleConversation* aConv) ;
 Bridge*      getBridgeByName(   const char* bridgeName) ;
 unsigned int getNBridges(       void) ;
 unsigned int getNChannels(      Bridge* aBridge) ;
+gboolean     doesBridgeExist(   Bridge* aBridge) ;
+gboolean     isServerChannel(   PurpleConversation* aConv) ;
+gboolean     areReservedIds(    char* bridgeName , char* channelUid ,
+                                PurpleConversation* aConv) ;
+void         prepareBridgeKeys( char* bridgeName) ;
+void         prepareChannelUid( PurpleConversation* aConv) ;
+Bridge*      newBridge(         char* bridgeName , Bridge* prevBridge ,
+                                gboolean isEnabled) ;
+Channel*     newChannel(        Channel* prevChannel) ;
+gboolean     createChannel(     char* bridgeName) ;
+void         destroyChannel(    Bridge* aBridge , PurpleConversation* aConv) ;
+void         enableBridge(      Bridge* aBridge , gboolean isEnable) ;
 
 // event handlers
 void     handlePluginInit(    PurplePlugin* plugin) ;
 gboolean handlePluginLoaded(  PurplePlugin* plugin) ;
 gboolean handlePluginUnloaded(PurplePlugin* plugin) ;
-void     handleChat(          PurpleAccount* anAccount , char* sender ,
-                              char* buffer , PurpleConversation* aConv ,
-                              PurpleMessageFlags flags , void* data) ;
+gboolean handleChat(          PurpleAccount* anAccount , char** sender ,
+                              char** msg , PurpleConversation* aConv ,
+                              PurpleMessageFlags* flags , void* data) ;
 
 // admin command handlers */
 PurpleCmdRet handleAddCmd(      PurpleConversation* aConv , const gchar* cmd ,
@@ -189,8 +199,7 @@ PurpleCmdRet handleHelpCmd(     PurpleConversation* aConv , const gchar* cmd ,
 
 // admin command responses
 // NOTE: callers of channelStateMsg() or bridgeStatsMsg()
-//    should first initialize ChatBuffer using one of the text buffer helpers
-//    then eventually call chatBufferDump() to flush to screen
+//    should eventually call chatBufferDump() to flush to screen
 void chatBufferDump(     PurpleConversation* aConv) ;
 void addResp(            PurpleConversation* aConv , char* thisBridgeName) ;
 void addExistsResp(      PurpleConversation* aConv , char* thisBridgeName) ;
@@ -199,6 +208,10 @@ void addReservedResp(    PurpleConversation* aConv) ;
 void addFailResp(        PurpleConversation* aConv) ;
 void removeResp(         PurpleConversation* thisConv , char* thisBridgeName) ;
 void removeUnbridgedResp(PurpleConversation* thisConv) ;
+void enableNoneResp(     PurpleConversation* thisConv , char* bridgeName) ;
+void enableAllResp(      PurpleConversation* thisConv , gboolean shouldEnable) ;
+void enableResp(         PurpleConversation* thisConv , char* bridgeName ,
+                         gboolean shouldEnable) ;
 void statusResp(         PurpleConversation* aConv , char* bridgeName) ;
 void channelStateMsg(    PurpleConversation* aConv) ;
 void bridgeStatsMsg(     const char* bridgeName) ;
@@ -207,7 +220,7 @@ void bridgeStatsMsg(     const char* bridgeName) ;
 gboolean isBlank(             const char* aCstring) ;
 void     channelUidBufferPutS(const char* fmt , const char* s1) ;
 void     channelUidBufferPutD(const char* fmt , int d1) ;
-void     chatBufferInit(      void) ;
+void     chatBufferClear(     void) ;
 void     chatBufferPutS(      const char* fmt , const char* s1) ;
 void     chatBufferPutSS(     const char* fmt , const char* s1 , const char* s2) ;
 void     chatBufferPutSSS(    const char* fmt , const char* s1 , const char* s2 ,
