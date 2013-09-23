@@ -1,8 +1,12 @@
 bridgin changelog
 
 
-2013-09-22 - v0.5pre
+2013-09-23 - v0.5pre
   CURRENT
+    reimplemented help command and refactored remaining MVC concerns
+
+2013-09-22 - v0.5pre
+  634a0a3c13
     reimplemented echo , chat , and broadcast commands
 
 2013-09-21 - v0.5pre

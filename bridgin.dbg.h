@@ -48,7 +48,7 @@ static void DBGchat(PurpleAccount* thisAccount , char* sender ,
   gboolean isLocal          = (flags & PURPLE_MESSAGE_SEND) ;
   gboolean isRemote         = (flags & PURPLE_MESSAGE_RECV) ;
   gboolean isUnbridged      = (thisBridge == SentinelBridge) ;
-  char dbgBuffer[UID_BUFFER_SIZE] ; unsigned int nChannels ;
+  char dbgBuffer[SM_BUFFER_SIZE] ; unsigned int nChannels ;
 
   if (!strcmp(channelName , "NickServ") || !strcmp(channelName , "MemoServ"))
   {
@@ -63,7 +63,7 @@ static void DBGchat(PurpleAccount* thisAccount , char* sender ,
   }
 
   nChannels = getNRelayChannels(thisBridge , thisConv) ;
-  snprintf(dbgBuffer , UID_BUFFER_SIZE , "%d %s" , nChannels , "channels") ;
+  snprintf(dbgBuffer , SM_BUFFER_SIZE , "%d %s" , nChannels , "channels") ;
 
   purple_debug_misc(PLUGIN_NAME ,
       "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%d%s%s%s\n" ,

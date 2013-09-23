@@ -5,10 +5,124 @@
 /* purple helpers */
 
 PurpleCmdId registerCmd(const char* command , const char* format ,
-                        PurpleCmdRet (* callback)() , const char* help)
+                        PurpleCmdRet (*callback)() , const char* help)
 {
   return purple_cmd_register(command , format , PURPLE_CMD_P_DEFAULT ,
       PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_CHAT , PLUGIN_ID , callback , help , NULL) ;
+}
+
+gboolean restoreSession()
+{
+  GList* prefsList ; GList* prefsIter ; const char* prefKey ; char* bridgeName ;
+  GList* channelsList ; GList* channelsIter ;
+
+  SentinelBridge = newBridge(SENTINEL_NAME , NULL , FALSE) ;
+  if (!SentinelBridge) { alert(OOM_MSG) ; return FALSE ; }
+
+  prefsList = purple_prefs_get_children_names(BASE_PREF_KEY) ;
+  prefsIter = g_list_first(prefsList) ;
+  while (prefsIter)
+  {
+#ifdef DEBUG_VB
+if (purple_prefs_get_type((char*)prefsIter->data) == PURPLE_PREF_BOOLEAN)
+  DBGsds("restoreSession() found bool prefKey='" , (char*)prefsIter->data , "' val='" , purple_prefs_get_bool((char*)prefsIter->data) , "'" , "") ;
+else if (purple_prefs_get_type((char*)prefsIter->data) == PURPLE_PREF_STRING)
+  DBGsss("restoreSession() found string prefKey='" , (char*)prefsIter->data , "' val='" , purple_prefs_get_string((char*)prefsIter->data) , "'" , "") ;
+#endif
+
+    prefKey = (char*)prefsIter->data ;
+    if (purple_prefs_get_type(prefKey) == PURPLE_PREF_STRING_LIST &&
+        (bridgeName = strrchr(prefKey , '/')) && ++bridgeName)
+    {
+#ifdef DEBUG_VB
+DBGss("restoreSession() found stored bridgeName='" , bridgeName , "'" , "") ;
+#endif
+
+      channelsList = purple_prefs_get_string_list(prefKey) ;
+      channelsIter = g_list_first(channelsList) ;
+      while (channelsIter)
+      {
+#ifdef DEBUG_VB
+DBGss("restoreSession() found stored channelUid='" , (char*)channelsIter->data , "'" , "") ;
+#endif
+
+        strcpy(ChannelUidBuffer , (char*)channelsIter->data) ;
+        if (!createChannel(bridgeName))
+        {
+          // malloc error - cleanup and bail
+          g_list_free(channelsList) ; g_list_free(channelsIter) ;
+          g_list_free(prefsList) ; g_list_free(prefsIter) ;
+          alert(OOM_MSG) ; return FALSE ;
+        }
+
+        channelsIter = g_list_next(channelsIter) ;
+      }
+      g_list_free(channelsList) ; g_list_free(channelsIter) ;
+    }
+
+    prefsIter = g_list_next(prefsIter) ;
+  }
+
+  g_list_foreach(prefsList , (GFunc)g_free , NULL) ;
+  g_list_free(prefsList) ; g_list_free(prefsIter) ;
+
+  return TRUE ;
+}
+
+void registerCommands()
+{
+  CommandIds[0]  = registerCmd(ADD_CMD     , UNARY_FMT  , ADD_CB     , ADDu_HELP) ;
+  CommandIds[1]  = registerCmd(ADD_CMD     , BINARY_FMT , ADD_CB     , ADDb_HELP) ;
+  CommandIds[2]  = registerCmd(REMOVE_CMD  , UNARY_FMT  , REMOVE_CB  , REMOVE_HELP) ;
+  CommandIds[3]  = registerCmd(DISABLE_CMD , UNARY_FMT  , DISABLE_CB , DISABLEu_HELP) ;
+  CommandIds[4]  = registerCmd(DISABLE_CMD , BINARY_FMT , DISABLE_CB , DISABLEb_HELP) ;
+  CommandIds[5]  = registerCmd(ENABLE_CMD  , UNARY_FMT  , ENABLE_CB  , ENABLEu_HELP) ;
+  CommandIds[6]  = registerCmd(ENABLE_CMD  , BINARY_FMT , ENABLE_CB  , ENABLEb_HELP) ;
+  CommandIds[7]  = registerCmd(ECHO_CMD    , BINARY_FMT , ECHO_CB    , ECHO_HELP) ;
+  CommandIds[8]  = registerCmd(CHAT_CMD    , BINARY_FMT , CHAT_CB    , CHAT_HELP) ;
+  CommandIds[9]  = registerCmd(BCAST_CMD   , BINARY_FMT , BCAST_CB   , BCAST_HELP) ;
+  CommandIds[10] = registerCmd(STATUS_CMD  , UNARY_FMT  , STATUS_CB  , STATUSu_HELP) ;
+  CommandIds[11] = registerCmd(STATUS_CMD  , BINARY_FMT , STATUS_CB  , STATUSb_HELP) ;
+  CommandIds[12] = registerCmd(HELP_CMD    , UNARY_FMT  , HELP_CB    , HELP_HELP) ;
+}
+
+void registerCallbacks()
+{
+  void* convs = purple_conversations_get_handle() ;
+  purple_signal_connect(convs , RECEIVING_IM_SIGNAL   , ThisPlugin ,
+                        PURPLE_CALLBACK(CHAT_RECV_CB) , NULL) ;
+  purple_signal_connect(convs , RECEIVING_CHAT_SIGNAL , ThisPlugin ,
+                        PURPLE_CALLBACK(CHAT_RECV_CB) , NULL) ;
+}
+
+void unregisterCommands()
+{
+  unsigned int i ;
+
+  for (i = 0 ; i < N_COMMANDS ; ++i) purple_cmd_unregister(CommandIds[i]) ;
+}
+
+void unregisterCallbacks()
+{
+  purple_prefs_disconnect_by_handle(purple_prefs_get_handle()) ;
+  purple_signal_disconnect(purple_conversations_get_handle() , RECEIVING_IM_SIGNAL ,
+                           ThisPlugin , PURPLE_CALLBACK(CHAT_RECV_CB)) ;
+  purple_signal_disconnect(purple_conversations_get_handle() , RECEIVING_CHAT_SIGNAL ,
+                           ThisPlugin , PURPLE_CALLBACK(CHAT_RECV_CB)) ;
+}
+
+void destroySession()
+{
+  Bridge* aBridge ; Channel* aChannel ;
+
+  aBridge = SentinelBridge ;
+  while ((aBridge = aBridge->next))
+  {
+    aChannel = aBridge->sentinelChannel ;
+    while ((aChannel = aChannel->next)) free(aChannel->prev) ;
+    free(aChannel) ; free(aBridge->prev) ;
+  }
+  free(aBridge) ;
 }
 
 const char* getChannelName(PurpleConversation* aConv)
@@ -38,38 +152,6 @@ unsigned int getNRelayChannels(Bridge* thisBridge , PurpleConversation* thisConv
     activeChannelsIter = g_list_next(activeChannelsIter) ;
   }
   return nChannels ;
-}
-
-void relayMessage(Bridge* outputBridge , PurpleConversation* inputConv)
-{
-// NOTE: inputConv will be excluded from the relay - pass in NULL to include it
-
-  GList* activeChannelsIter = NULL ; PurpleConversation* aConv ; unsigned int convType ;
-
-  activeChannelsIter = g_list_first(purple_get_conversations()) ;
-  while (activeChannelsIter)
-  {
-#ifdef DEBUG_VB
-DBGss("relayMessage() got active channelName='" , getChannelName((PurpleConversation*)activeChannelsIter->data) , (((PurpleConversation*)activeChannelsIter->data == thisConv)? " isThisChannel - skipping" : ((getBridgeByChannel((PurpleConversation*)activeChannelsIter->data) == thisBridge)? "' isThisBridge - relaying" : "' notThisBridge - skipping" )) , "") ;
-#endif
-
-    aConv = (PurpleConversation*)activeChannelsIter->data ;
-    if (aConv != inputConv && getBridgeByChannel(aConv) == outputBridge)
-    {
-      convType = purple_conversation_get_type(aConv) ;
-      if (convType == PURPLE_CONV_TYPE_IM)
-        purple_conv_im_send(purple_conversation_get_im_data(aConv) , ChatBuffer) ;
-      else if (convType == PURPLE_CONV_TYPE_CHAT)
-        purple_conv_chat_send(purple_conversation_get_chat_data(aConv) , ChatBuffer) ;
-    }
-    activeChannelsIter = g_list_next(activeChannelsIter) ;
-  }
-}
-
-void alert(char* msg)
-{
-  purple_notify_message(ThisPlugin , PURPLE_NOTIFY_MSG_INFO , msg ,
-                        PLUGIN_VERSION , NULL , NULL , NULL) ;
 }
 
 
@@ -123,7 +205,9 @@ unsigned int getNBridges()
 
 unsigned int getNChannels(Bridge* aBridge)
 {
-  Channel* aChannel ; unsigned int n ; aChannel = aBridge->sentinelChannel ; n = 0 ;
+  Channel* aChannel ; unsigned int n ;
+
+  aChannel = aBridge->sentinelChannel ; n = 0 ;
   while ((aChannel = aChannel->next)) ++n ;
   return n ;
 }
@@ -146,9 +230,9 @@ gboolean areReservedIds(char* bridgeName , char* channelUid , PurpleConversation
 
 void prepareBridgeKeys(char* bridgeName)
 {
-  snprintf(BridgeKeyBuffer  , UID_BUFFER_SIZE , BRIDGE_PREF_FMT ,
+  snprintf(BridgeKeyBuffer  , SM_BUFFER_SIZE , BRIDGE_PREF_FMT ,
            BASE_PREF_KEY   , bridgeName) ;
-  snprintf(EnabledKeyBuffer , UID_BUFFER_SIZE , ENABLED_PREF_FMT  ,
+  snprintf(EnabledKeyBuffer , SM_BUFFER_SIZE , ENABLED_PREF_FMT  ,
            BridgeKeyBuffer , ENABLED_PREF_KEY) ;
 }
 
@@ -293,115 +377,20 @@ void handlePluginInit(PurplePlugin* aPlugin)
 
 gboolean handlePluginLoaded(PurplePlugin* aPlugin)
 {
-  void* convs ;
-  GList* prefsList ; GList* prefsIter ; const char* prefKey ; char* bridgeName ;
-  GList* channelsList ; GList* channelsIter ;
-
 DBG("handlePluginLoaded()") ;
 
-  // init
-  SentinelBridge = newBridge(SENTINEL_NAME , NULL , FALSE) ;
-  if (!SentinelBridge) { alert(OOM_MSG) ; return FALSE ; }
+  if (!restoreSession()) return FALSE ;
 
-  // register admin commands
-  CommandIds[0]  = registerCmd(ADD_CMD     , UNARY_FMT  , ADD_CB     , ADDu_HELP) ;
-  CommandIds[1]  = registerCmd(ADD_CMD     , BINARY_FMT , ADD_CB     , ADDb_HELP) ;
-  CommandIds[2]  = registerCmd(REMOVE_CMD  , UNARY_FMT  , REMOVE_CB  , REMOVE_HELP) ;
-  CommandIds[3]  = registerCmd(DISABLE_CMD , UNARY_FMT  , DISABLE_CB , DISABLEu_HELP) ;
-  CommandIds[4]  = registerCmd(DISABLE_CMD , BINARY_FMT , DISABLE_CB , DISABLEb_HELP) ;
-  CommandIds[5]  = registerCmd(ENABLE_CMD  , UNARY_FMT  , ENABLE_CB  , ENABLEu_HELP) ;
-  CommandIds[6]  = registerCmd(ENABLE_CMD  , BINARY_FMT , ENABLE_CB  , ENABLEb_HELP) ;
-  CommandIds[7]  = registerCmd(ECHO_CMD    , BINARY_FMT , ECHO_CB    , ECHO_HELP) ;
-  CommandIds[8]  = registerCmd(CHAT_CMD    , BINARY_FMT , CHAT_CB    , CHAT_HELP) ;
-  CommandIds[9]  = registerCmd(BCAST_CMD   , BINARY_FMT , BCAST_CB   , BCAST_HELP) ;
-  CommandIds[10] = registerCmd(STATUS_CMD  , UNARY_FMT  , STATUS_CB  , STATUSu_HELP) ;
-  CommandIds[11] = registerCmd(STATUS_CMD  , BINARY_FMT , STATUS_CB  , STATUSb_HELP) ;
-  CommandIds[12] = registerCmd(HELP_CMD    , UNARY_FMT  , HELP_CB    , HELP_HELP) ;
-
-  // register conversation callbacks
-  convs = purple_conversations_get_handle() ;
-  purple_signal_connect(convs , RECEIVING_IM_SIGNAL   , ThisPlugin ,
-                        PURPLE_CALLBACK(handleChat) , NULL) ;
-  purple_signal_connect(convs , RECEIVING_CHAT_SIGNAL , ThisPlugin ,
-                        PURPLE_CALLBACK(handleChat) , NULL) ;
-
-  // restore session
-  prefsList = purple_prefs_get_children_names(BASE_PREF_KEY) ;
-  prefsIter = g_list_first(prefsList) ;
-  while (prefsIter)
-  {
-#ifdef DEBUG_VB
-if (purple_prefs_get_type((char*)prefsIter->data) == PURPLE_PREF_BOOLEAN)
-  DBGsds("handlePluginLoaded() found bool prefKey='" , (char*)prefsIter->data , "' val='" , purple_prefs_get_bool((char*)prefsIter->data) , "'" , "") ;
-else if (purple_prefs_get_type((char*)prefsIter->data) == PURPLE_PREF_STRING)
-  DBGsss("handlePluginLoaded() found string prefKey='" , (char*)prefsIter->data , "' val='" , purple_prefs_get_string((char*)prefsIter->data) , "'" , "") ;
-#endif
-
-    prefKey = (char*)prefsIter->data ;
-    if (purple_prefs_get_type(prefKey) == PURPLE_PREF_STRING_LIST &&
-        (bridgeName = strrchr(prefKey , '/')) && ++bridgeName)
-    {
-#ifdef DEBUG_VB
-DBGss("handlePluginLoaded() found stored bridgeName='" , bridgeName , "'" , "") ;
-#endif
-
-      channelsList = purple_prefs_get_string_list(prefKey) ;
-      channelsIter = g_list_first(channelsList) ;
-      while (channelsIter)
-      {
-#ifdef DEBUG_VB
-DBGss("handlePluginLoaded() found stored channelUid='" , (char*)channelsIter->data , "'" , "") ;
-#endif
-
-        strcpy(ChannelUidBuffer , (char*)channelsIter->data) ;
-        if (!createChannel(bridgeName))
-        {
-          // malloc error - cleanup and bail
-          g_list_free(channelsList) ; g_list_free(channelsIter) ;
-          g_list_free(prefsList) ; g_list_free(prefsIter) ;
-          alert(OOM_MSG) ; return FALSE ;
-        }
-
-        channelsIter = g_list_next(channelsIter) ;
-      }
-      g_list_free(channelsList) ; g_list_free(channelsIter) ;
-    }
-
-    prefsIter = g_list_next(prefsIter) ;
-  }
-
-  g_list_foreach(prefsList , (GFunc)g_free , NULL) ;
-  g_list_free(prefsList) ; g_list_free(prefsIter) ;
-
-  chatBufferClear() ;
+  registerCommands() ; registerCallbacks() ; chatBufferClear() ;
 
   return TRUE ;
 }
 
 gboolean handlePluginUnloaded(PurplePlugin* plugin)
 {
-  unsigned int i ; Bridge* aBridge ; Channel* aChannel ;
-
 DBG("handlePluginUnloaded()") ;
 
-  // unregister commands
-  for (i = 0 ; i < N_COMMANDS ; ++i) purple_cmd_unregister(CommandIds[i]) ;
-
-  // unregister callbacks
-  purple_prefs_disconnect_by_handle(purple_prefs_get_handle()) ;
-  purple_signal_disconnect(purple_conversations_get_handle() , RECEIVING_IM_SIGNAL ,
-                           ThisPlugin , PURPLE_CALLBACK(handleChat)) ;
-  purple_signal_disconnect(purple_conversations_get_handle() , RECEIVING_CHAT_SIGNAL ,
-                           ThisPlugin , PURPLE_CALLBACK(handleChat)) ;
-
-  aBridge = SentinelBridge ;
-  while ((aBridge = aBridge->next))
-  {
-    aChannel = aBridge->sentinelChannel ;
-    while ((aChannel = aChannel->next)) free(aChannel->prev) ;
-    free(aChannel) ; free(aBridge->prev) ;
-  }
-  free(aBridge) ;
+  unregisterCommands() ; unregisterCallbacks() ; destroySession() ;
 
   return TRUE ;
 }
@@ -461,13 +450,13 @@ DBGcmd(command , args[0]) ;
 PurpleCmdRet handleRemoveCmd(PurpleConversation* thisConv , const gchar* command ,
                              gchar** args , gchar** error , void* data)
 {
-  Bridge* thisBridge ; char thisBridgeName[UID_BUFFER_SIZE] ;
+  Bridge* thisBridge ; char thisBridgeName[SM_BUFFER_SIZE] ;
 
 DBGcmd(command , args[0]) ;
 
   if (doesBridgeExist(thisBridge = getBridgeByChannel(thisConv)))
   {
-    strncpy(thisBridgeName , thisBridge->name , UID_BUFFER_SIZE) ;
+    strncpy(thisBridgeName , thisBridge->name , SM_BUFFER_SIZE) ;
     destroyChannel(thisBridge , thisConv) ; removeResp(thisConv , thisBridgeName) ;
   }
   else removeUnbridgedResp(thisConv) ;
@@ -508,9 +497,7 @@ PurpleCmdRet handleEchoCmd(PurpleConversation* thisConv , const gchar* command ,
 {
 DBGcmd(command , args[0]) ;
 
-  prepareRelayChat(NICK_PREFIX , getNick(thisConv) , *args) ; chatBufferDump(thisConv) ;
-
-  return PURPLE_CMD_RET_OK ;
+  adminEcho(thisConv , *args) ; return PURPLE_CMD_RET_OK ;
 }
 
 PurpleCmdRet handleChatCmd(PurpleConversation* thisConv , const gchar* command ,
@@ -520,11 +507,8 @@ PurpleCmdRet handleChatCmd(PurpleConversation* thisConv , const gchar* command ,
 
 DBGcmd(command , args[0]) ;
 
-  if (doesBridgeExist(thisBridge = getBridgeByChannel(thisConv)))
-  {
-    prepareRelayChat(NICK_PREFIX , getNick(thisConv) , *args) ;
-    relayMessage(thisBridge , NULL) ; chatBufferClear() ;
-  }
+  thisBridge = getBridgeByChannel(thisConv) ;
+  if (doesBridgeExist(thisBridge)) adminChat(thisConv , *args , thisBridge) ;
   else channelStateMsg(thisConv) ;
 
   return PURPLE_CMD_RET_OK ;
@@ -533,16 +517,9 @@ DBGcmd(command , args[0]) ;
 PurpleCmdRet handleBroadcastCmd(PurpleConversation* thisConv , const gchar* command ,
                                 gchar** args , gchar** error , void* data)
 {
-  Bridge* aBridge ;
-
 DBGcmd(command , args[0]) ;
 
-  broadcastResp(thisConv) ;
-
-  aBridge = SentinelBridge ; prepareRelayChat(BCAST_PREFIX , getNick(thisConv) , *args) ;
-  while ((aBridge = aBridge->next)) relayMessage(aBridge , NULL) ; chatBufferClear() ;
-
-  return PURPLE_CMD_RET_OK ;
+  broadcastResp(thisConv) ; adminBroadcast(thisConv , *args) ; return PURPLE_CMD_RET_OK ;
 }
 
 PurpleCmdRet handleStatusCmd(PurpleConversation* thisConv , const gchar* command ,
@@ -558,7 +535,7 @@ PurpleCmdRet handleHelpCmd(PurpleConversation* thisConv , const gchar* command ,
 {
 DBGcmd(command , args[0]) ;
 
-  return PURPLE_CMD_RET_OK ;
+  helpResp(thisConv) ; return PURPLE_CMD_RET_OK ;
 }
 
 /* admin command responses */
@@ -600,13 +577,35 @@ void enableNoneResp(PurpleConversation* thisConv , char* bridgeName)
   {  bridgeStatsMsg(bridgeName) ; chatBufferDump(thisConv) ; }
 
 void enableAllResp(PurpleConversation* thisConv , gboolean shouldEnable)
-  { chatBufferPut(((shouldEnable)? ENABLING_ALL_MSG : DISABLING_ALL_MSG)) ; }
+{
+  chatBufferPut(((shouldEnable)? ENABLING_ALL_MSG : DISABLING_ALL_MSG)) ;
+  chatBufferDump(thisConv) ;
+}
 
 void enableResp(PurpleConversation* thisConv , char* bridgeName , gboolean shouldEnable)
 {
   char* enabledMsg = ((shouldEnable)? ENABLED_MSG : DISABLED_MSG) ;
   chatBufferPutSSS("%s '%s' %s" , ENABLE_MSG , bridgeName , enabledMsg) ;
   chatBufferDump(thisConv) ;
+}
+
+void adminEcho(PurpleConversation* inputConv , char* msg)
+{
+  prepareRelayChat(NICK_PREFIX , getNick(inputConv) , msg) ; chatBufferDump(inputConv) ;
+}
+
+void adminChat(PurpleConversation* inputConv , char* msg , Bridge* aBridge)
+{
+  prepareRelayChat(NICK_PREFIX , getNick(inputConv) , msg) ;
+  relayMessage(aBridge , NULL) ; chatBufferClear() ;
+}
+
+void adminBroadcast(PurpleConversation* inputConv , char* msg)
+{
+  Bridge* aBridge = SentinelBridge ;
+
+  prepareRelayChat(BCAST_PREFIX , getNick(inputConv) , msg) ;
+  while ((aBridge = aBridge->next)) relayMessage(aBridge , NULL) ; chatBufferClear() ;
 }
 
 void broadcastResp(PurpleConversation* thisConv)
@@ -619,15 +618,6 @@ void broadcastResp(PurpleConversation* thisConv)
   else chatBufferPutSDS("%s %d %s" , BROADCAST_MSGa , nChannels , BROADCAST_MSGb) ;
   chatBufferDump(thisConv) ;
 }
-
-/* TODO: the remaining admin commands and responses
-function helpResp()
-{
-  global $HELP_MSG , $HELP_MSGS ; $resp = $HELP_MSG ;
-  foreach ($HELP_MSGS as $trigger => $desc) $resp .= "\n$trigger\n\t=> $desc" ;
-  return $resp ;
-}
-*/
 
 void statusResp(PurpleConversation* thisConv , char* bridgeName)
 {
@@ -647,6 +637,21 @@ if (!nBridges) DBGs("statusResp() no bridges") ; else if (isBlank(bridgeName)) D
       { bridgeStatsMsg(aBridge->name) ; chatBufferCat("\n\n") ; }
 
   channelStateMsg(thisConv) ; chatBufferDump(thisConv) ;
+}
+
+void helpResp(PurpleConversation* thisConv)
+{
+  unsigned int i ; GList* helpIter ;
+
+  for (i = 0 ; i < N_UNIQ_CMDS ; ++i)
+  {
+    helpIter = g_list_first(purple_cmd_help(NULL , Commands[i])) ;
+    while (helpIter)
+    {
+      chatBufferPut(helpIter->data) ; chatBufferDump(thisConv) ;
+      helpIter = g_list_next(helpIter) ;
+    }
+  }
 }
 
 void channelStateMsg(PurpleConversation* thisConv)
@@ -672,7 +677,7 @@ void bridgeStatsMsg(const char* bridgeName)
   Bridge* aBridge ; Channel* aChannel ; unsigned int nChannels ;
   GList* activeChannelsIter = NULL ; gboolean isActive = FALSE ;
   char* activeMsg ; char* protocol ; char* username ; const char* channelName ;
-  char* network ; char nick[UID_BUFFER_SIZE] ;
+  char* network ; char nick[SM_BUFFER_SIZE] ;
 
   if (!doesBridgeExist(aBridge = getBridgeByName(bridgeName)))
   {
@@ -744,31 +749,31 @@ DBGsssss("bridgeStatsMsg() parsed channelId " , activeMsg , " protocol='" , prot
 gboolean isBlank(const char* aCstring) { return (!aCstring || !*aCstring) ; }
 
 void channelUidBufferPutS(const char* fmt , const char* s1)
-  { snprintf(ChannelUidBuffer , UID_BUFFER_SIZE , fmt , s1) ; }
+  { snprintf(ChannelUidBuffer , SM_BUFFER_SIZE , fmt , s1) ; }
 
 void channelUidBufferPutD(const char* fmt , int d1)
-  { snprintf(ChannelUidBuffer , UID_BUFFER_SIZE , fmt , d1) ; }
+  { snprintf(ChannelUidBuffer , SM_BUFFER_SIZE , fmt , d1) ; }
 
 void chatBufferClear() { ChatBuffer[0] = '\0' ; }
 
 void chatBufferPut(    const char* s)
-  { snprintf(ChatBuffer , CHAT_BUFFER_SIZE , "%s" , s) ; }
+  { snprintf(ChatBuffer , LG_BUFFER_SIZE , "%s" , s) ; }
 
 void chatBufferPutSS(  const char* fmt , const char* s1 , const char* s2)
-  { snprintf(ChatBuffer , CHAT_BUFFER_SIZE , fmt , s1 , s2) ; }
+  { snprintf(ChatBuffer , LG_BUFFER_SIZE , fmt , s1 , s2) ; }
 
 void chatBufferPutSSS( const char* fmt , const char* s1 , const char* s2 , const char* s3)
-  { snprintf(ChatBuffer , CHAT_BUFFER_SIZE , fmt , s1 , s2 , s3) ; }
+  { snprintf(ChatBuffer , LG_BUFFER_SIZE , fmt , s1 , s2 , s3) ; }
 
 void chatBufferPutSDS( const char* fmt , const char* s1 , int d1 , const char* s2)
-  { snprintf(ChatBuffer , CHAT_BUFFER_SIZE , fmt , s1 , d1 , s2) ; }
+  { snprintf(ChatBuffer , LG_BUFFER_SIZE , fmt , s1 , d1 , s2) ; }
 
 void chatBufferPutSSSS(const char* fmt , const char* s1 , const char* s2 ,
                        const char* s3  , const char* s4)
-  { snprintf(ChatBuffer , CHAT_BUFFER_SIZE , fmt , s1 , s2 , s3 , s4) ; }
+  { snprintf(ChatBuffer , LG_BUFFER_SIZE , fmt , s1 , s2 , s3 , s4) ; }
 
 void chatBufferCat(      const char* s)
-  { strncat(ChatBuffer , s , CHAT_BUFFER_SIZE - strlen(ChatBuffer) - 1) ; }
+  { strncat(ChatBuffer , s , LG_BUFFER_SIZE - strlen(ChatBuffer) - 1) ; }
 
 void chatBufferCatSS(    const char* s1 , const char* s2)
   { chatBufferCat(s1) ; chatBufferCat(s2) ; }
@@ -804,6 +809,38 @@ DBGs("chatBufferDump() ChatBuffer=\n" , ChatBuffer) ;
   chatBufferClear() ;
 }
 
+void relayMessage(Bridge* outputBridge , PurpleConversation* inputConv)
+{
+// NOTE: inputConv will be excluded from the relay - pass in NULL to include it
+
+  GList* activeChannelsIter = NULL ; PurpleConversation* aConv ; unsigned int convType ;
+
+  activeChannelsIter = g_list_first(purple_get_conversations()) ;
+  while (activeChannelsIter)
+  {
+#ifdef DEBUG_VB
+DBGss("relayMessage() got active channelName='" , getChannelName((PurpleConversation*)activeChannelsIter->data) , (((PurpleConversation*)activeChannelsIter->data == thisConv)? " isThisChannel - skipping" : ((getBridgeByChannel((PurpleConversation*)activeChannelsIter->data) == thisBridge)? "' isThisBridge - relaying" : "' notThisBridge - skipping" )) , "") ;
+#endif
+
+    aConv = (PurpleConversation*)activeChannelsIter->data ;
+    if (aConv != inputConv && getBridgeByChannel(aConv) == outputBridge)
+    {
+      convType = purple_conversation_get_type(aConv) ;
+      if (convType == PURPLE_CONV_TYPE_IM)
+        purple_conv_im_send(purple_conversation_get_im_data(aConv) , ChatBuffer) ;
+      else if (convType == PURPLE_CONV_TYPE_CHAT)
+        purple_conv_chat_send(purple_conversation_get_chat_data(aConv) , ChatBuffer) ;
+    }
+    activeChannelsIter = g_list_next(activeChannelsIter) ;
+  }
+}
+
+void alert(char* msg)
+{
+  purple_notify_message(ThisPlugin , PURPLE_NOTIFY_MSG_INFO , msg ,
+                        PLUGIN_VERSION , NULL , NULL , NULL) ;
+}
+
 
 /* main */
 
@@ -815,6 +852,8 @@ static PurplePluginInfo PluginInfo =
   PLUGIN_AUTHOR , PLUGIN_WEBSITE , PLUGIN_ONLOAD_CB , PLUGIN_ONUNLOAD_CB ,
   NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL , NULL
 } ;
+
+static char* Commands[N_UNIQ_CMDS] = COMMANDS ;
 
 
 PURPLE_INIT_PLUGIN(PLUGIN_NAME , handlePluginInit , PluginInfo)
