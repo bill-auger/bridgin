@@ -1,6 +1,11 @@
 bridgin changelog
 
 
+2013-09-25 - v0.5
+  CURRENT
+    removed internal model mirror structs relying solely on purple prefs for state
+    this fixed issue #1
+
 2013-09-23 - v0.5pre
   897a50cdfa
     reimplemented help command and refactored remaining MVC concerns

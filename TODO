@@ -1,0 +1,18 @@
+
+high-priority TODOs:
+	* ensure the ./install.sh script still works
+
+
+potential features:
+	* (in progress) GUI prefs though not particularly useful but perhaps just for fun
+	* proper handling of special forms - e.g. /me
+	* /?who command (for all users) to list users on other networks
+	* centralized server-side auth to manage/block multiple instances in same channels
+	* compile and/or package binaries and/or find a debian sponsor
+
+
+low-priority TODOs:
+	* refactor the inner activeChannelsIter loop in bridgeStatsMsg() into an array of char* outside the bridged channels loop
+	* refactor the inner loop of getBridgeName() into a findChannel() yield callback to g_find_custom on prefslist
+	* handle empty input strings avoiding responses such as "no such bridge ' '" either one by one
+		or refactor all command handlers into a dispatch function

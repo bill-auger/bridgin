@@ -7,14 +7,15 @@
 #  define PURPLE_PLUGINS
 #endif
 
+
 // plugin constants
 #define PLUGIN_TYPE        PURPLE_PLUGIN_STANDARD
 #define PLUGIN_GUI_TYPE    NULL
 #define PLUGIN_ID          "core-mr-jonze-bridgin"
-#define PLUGIN_NAME        "bridgin"
-#define PLUGIN_VERSION     "0.5pre"
-#define PLUGIN_SHORT_DESC  "short description"
-#define PLUGIN_LONG_DESC   "long description"
+#define PLUGIN_NAME        "Bridgin"
+#define PLUGIN_VERSION     "0.5.0"
+#define PLUGIN_SHORT_DESC  "Bridge multiple conversations"
+#define PLUGIN_LONG_DESC   "Relays chat message from/to specified conversations.\n\tType /? into any conversation for available commands."
 #define PLUGIN_AUTHOR      "bill auger <mr.j.spam.me@gmail.com>"
 #define PLUGIN_WEBSITE     "https://github.com/bill-auger/bridgin"
 #define PLUGIN_ONLOAD_CB   handlePluginLoaded
@@ -24,10 +25,10 @@
 // app constants
 #define BRIDGIN_NICK        "BRIDGIN"
 #define DEFAULT_BRIDGE_NAME "default"
-#define CHAT_OUT_FMT        "%s %s%s %s"
-#define NICK_PREFIX         "(from" // dont use '<' - some clients will supress it as html
-#define NICK_POSTFIX        ")"
-#define BCAST_PREFIX        "(BROADCAST from"
+#define CHAT_OUT_FMT        "%s%s%s%s" // prefix , sender , postfix , msg
+#define NICK_PREFIX         "(from "   // dont use '<' - some clients will supress it as html
+#define NICK_POSTFIX        ") "
+#define BCAST_PREFIX        "(BROADCAST from "
 
 // purple constants
 #define RECEIVING_IM_SIGNAL   "receiving-im-msg"
@@ -37,12 +38,10 @@
 // model constants
 #define SM_BUFFER_SIZE   256
 #define LG_BUFFER_SIZE   8192
+#define BASE_PREF_KEY    "/plugins/core/"PLUGIN_NAME
 #define BRIDGE_PREF_FMT  "%s/%s"
 #define ENABLED_PREF_FMT "%s%s"
-#define BASE_PREF_KEY    "/plugins/core/"PLUGIN_NAME
-#define BASE_PREF_LABEL  PLUGIN_NAME" preferences"
 #define ENABLED_PREF_KEY "-enabled"
-#define SENTINEL_NAME    "sentinel"
 #define UID_DELIMITER    "::"
 #define CHANNEL_UID_FMT  "%s"UID_DELIMITER"%s"UID_DELIMITER"%s"
 
@@ -124,35 +123,18 @@
 //#include "signals.h"
 #include "version.h"
 
-/*
-typedef struct Channel
-{
-  char            uid[SM_BUFFER_SIZE] ;
-  struct Channel* prev ;
-  struct Channel* next ;
-} Channel ;
 
-typedef struct Bridge
-{
-  char           name[SM_BUFFER_SIZE] ;
-  gboolean       isEnabled ;
-  Channel*       sentinelChannel ;
-  struct Bridge* prev ;
-  struct Bridge* next ;
-} Bridge ;
-*/
+/* global vars */
 
-// global vars
-static PurplePluginInfo PluginInfo ;                       // init pre main()
+static char*            Commands[N_UNIQ_CMDS] ;            // init global
+static unsigned int     NRelayChannels ;                   // init global
+static PurplePluginInfo PluginInfo ;                       // init global
 static PurplePlugin*    ThisPlugin ;                       // init handlePluginLoaded()
 static PurpleCmdId      CommandIds[N_COMMANDS] ;           // init handlePluginLoaded()
-static char*            Commands[N_UNIQ_CMDS] ;            // init pre main()
-//static Bridge*          SentinelBridge ;                   // init handlePluginLoaded()
 static char             BridgeKeyBuffer[SM_BUFFER_SIZE] ;  // volatile
 static char             EnabledKeyBuffer[SM_BUFFER_SIZE] ; // volatile
 static char             ChannelUidBuffer[SM_BUFFER_SIZE] ; // volatile
 static char             ChatBuffer[LG_BUFFER_SIZE] ;       // volatile
-static unsigned int NRelayChannels ;// init pre main()
 
 
 /* model-like functions */
@@ -160,49 +142,35 @@ static unsigned int NRelayChannels ;// init pre main()
 // purple helpers
 PurpleCmdId    registerCmd(        const char* command , const char* format ,
                                    PurpleCmdRet (*callback)() , const char* help) ;
-//gboolean       restoreSession(     void) ;
 void           registerCommands(   void) ;
 void           registerCallbacks(  void) ;
 void           unregisterCommands( void) ;
 void           unregisterCallbacks(void) ;
-//void           destroySession(     void) ;
 const char*    getChannelName(     PurpleConversation* aConv) ;
 const char*    getProtocol(        PurpleAccount* anAccount) ;
 PurpleAccount* getAccount(         PurpleConversation* aConv) ;
 const char*    getUsername(        PurpleAccount* anAccount) ;
 const char*    getNick(            PurpleConversation* aConv) ;
-//unsigned int   getNRelayChannels(  Bridge* thisBridge , PurpleConversation* thisConv) ;
-void getNRelayChannels(char* bridgeName , PurpleConversation* inputConv) ;
 
 // model helpers
-void         prepareBridgeKeys( const char* bridgeName) ;
-void         prepareChannelUid( PurpleConversation* aConv) ;
-gint isThisChanne(gconstpointer a , gconstpointer b) ;
-// Bridge*      getBridgeByChannel(PurpleConversation* aConv) ;
-void getBridgeName(PurpleConversation* aConv , char* thisBridgeNameBuffer) ;
-//Bridge*      getBridgeByName(   const char* bridgeName) ;
-unsigned int getNBridges(       void) ;
-// unsigned int getNChannels(      Bridge* aBridge) ;
-unsigned int getNChannels(const char* bridgeName) ;
-//gboolean     doesBridgeExist(   Bridge* aBridge) ;
-gboolean doesBridgeExist(const char* bridgeName) ;
-gboolean isBridgeEnabled(const char* bridgeName) ;
-gboolean isChannelBridged(PurpleConversation* aConv) ;
-//gboolean     isServerChannel(   PurpleConversation* aConv) ;
-// gboolean     areReservedIds(    char* bridgeName , char* channelUid ,
-//                                 PurpleConversation* aConv) ;
-gboolean areReservedIds(char* bridgeName , char* channelUid , const char* channelName) ;
-// Bridge*      newBridge(         char* bridgeName , Bridge* prevBridge ,
-//                                 gboolean isEnabled) ;
-// Channel*     newChannel(        Channel* prevChannel) ;
-//gboolean     createChannel(     char* bridgeName , gboolean isStored) ;
-gboolean isValidChannelsPref(const char* bridgePrefKey) ;
-void createChannel(char* bridgeName) ;
-// void         destroyChannel(    Bridge* aBridge , PurpleConversation* aConv) ;
-void         destroyChannel(PurpleConversation* aConv) ;
-// void         enableBridge(      Bridge* aBridge , gboolean isEnable) ;
-void enableBridge(char* bridgeName , gboolean shouldEnable) ;
-void enableBridgeEach(char* bridgePrefKey , gboolean* shouldEnable) ;
+void         prepareBridgeKeys(const char* bridgeName) ;
+void         prepareChannelUid(PurpleConversation* aConv) ;
+gint         isMatch(          gconstpointer a , gconstpointer b) ;
+void         prefKey2Name(     const char* prefKey , char* nameBuffer) ;
+void         getBridgeName(    PurpleConversation* aConv , char* thisBridgeNameBuffer) ;
+unsigned int getNBridges(      void) ;
+unsigned int getNChannels(     const char* bridgeName) ;
+void         getNRelayChannels(char* bridgePrefKey , PurpleConversation* inputConv) ;
+gboolean     doesBridgeExist(  const char* bridgeName) ;
+gboolean     isBridgeEnabled(  const char* bridgeName) ;
+gboolean     isChannelBridged( PurpleConversation* aConv) ;
+gboolean     areReservedIds(   char* bridgeName , char* channelUid ,
+                               const char* channelName) ;
+gboolean     isChannelsPref(   const char* bridgePrefKey) ;
+void         createChannel(    char* bridgeName) ;
+void         destroyChannel(   PurpleConversation* aConv) ;
+void         enableBridge(     char* bridgeName , gboolean shouldEnable) ;
+void         enableBridgeEach( char* bridgePrefKey , gboolean* shouldEnable) ;
 
 
 /* controller-like functions */
@@ -237,8 +205,6 @@ PurpleCmdRet handleHelpCmd(     PurpleConversation* aConv , const gchar* cmd ,
 /* view-like functions */
 
 // admin command responses
-// NOTE: callers of channelStateMsg() or bridgeStatsMsg()
-//    should eventually call chatBufferDump() to flush to screen
 void addResp(            PurpleConversation* aConv , char* thisBridgeName) ;
 void addExistsResp(      PurpleConversation* aConv , char* thisBridgeName) ;
 void addConflictResp(    PurpleConversation* aConv) ;
@@ -250,18 +216,16 @@ void enableNoneResp(     PurpleConversation* thisConv , char* bridgeName) ;
 void enableAllResp(      PurpleConversation* thisConv , gboolean shouldEnable) ;
 void enableResp(         PurpleConversation* thisConv , char* bridgeName ,
                          gboolean shouldEnable) ;
-void enableRespEach(char* bridgePrefKey , PurpleConversation* thisConv) ;
+void enableRespEach(     char* bridgePrefKey , PurpleConversation* thisConv) ;
 void adminEcho(          PurpleConversation* thisConv , char* msg) ;
-// void adminChat(          PurpleConversation* inputConv , char* msg ,
-//                          Bridge* aBridge) ;
-void adminChat(PurpleConversation* thisConv , char* msg , char* thisBridgeName) ;
+void adminChat(          PurpleConversation* thisConv , char* msg , char* thisBridgeName) ;
 void adminBroadcast(     PurpleConversation* thisConv , char* msg) ;
 void broadcastResp(      PurpleConversation* thisConv) ;
 void statusResp(         PurpleConversation* aConv , char* bridgeName) ;
 void helpResp(           PurpleConversation* thisConv) ;
 void channelStateMsg(    PurpleConversation* aConv) ;
 void bridgeStatsMsg(     const char* bridgePrefKey) ;
-void bridgeStatsMsgEach(const char* bridgePrefKey , void* unusedGListEachData) ;
+void bridgeStatsMsgEach( const char* bridgePrefKey , void* unusedGListEachData) ;
 
 // text buffer helpers
 gboolean isBlank(             const char* aCstring) ;
@@ -286,6 +250,6 @@ void     chatBufferCatSSSSSS( const char* s1 , const char* s2 , const char* s3 ,
                               const char* s4 , const char* s5 , const char* s6) ;
 void     prepareRelayChat(    char* prefix , const char* sender , char* msg) ;
 void     chatBufferDump(      PurpleConversation* thisConv) ;
-// void     relayMessage(        Bridge* outputBridge , PurpleConversation* inputConv) ;
-void relayMessage(char* bridgeName , PurpleConversation* thisConv) ;
+void     relayMessage(        char* bridgeName , PurpleConversation* thisConv) ;
+void     relayMessageEach(    const char* bridgePrefKey , PurpleConversation* thisConv) ;
 void     alert(               char* msg) ;
