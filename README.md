@@ -6,10 +6,10 @@
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(icq , yahoo , aim , msn , myspace , google talk ,  
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;twitter , facebook , identi.ca , and many others)  
   
-this is a native purple plugin port of the [bridgin-php](https://github.com/bill-auger/bridgin-php) project - once the initial port is completed  
-further development will be able to overcome the limitations of the original php/dbus script  
+this is a native purple plugin port of the [bridgin-php](https://github.com/bill-auger/bridgin-php) project  
+ported to C in order to overcome the limitations of the original php/dbus script  
   
-some new functionalities this will allow:  
+some new functionalities this allows:  
 * supressing echo to public chats of admin commands and status reports
 * better handling of special forms such as '/me' , smileys , etc ...
 * issuing admin commands in the standard form ('/add' instead of '?/add')
