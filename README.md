@@ -1,10 +1,10 @@
 ### <-- bridgin (with a pidgin) -->
 
-&nbsp;&nbsp;&nbsp;&nbsp;a nifty purple plugin that enables you  
+&nbsp;&nbsp;&nbsp;&nbsp;a nifty purple plugin  
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;to bridge multiple IM and chat sessions  
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;across the various services supported by libpurple  
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(icq , yahoo , aim , msn , myspace , google talk ,  
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;twitter , facebook , identi.ca , and many others)  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;across the various chat services supported by libpurple  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(aim, facebook, googletalk, icq, identi.ca,  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;irc, msn, myspace, twitter, yahoo and many others)  
   
 this is a native purple plugin port of the [bridgin-php](https://github.com/bill-auger/bridgin-php) project  
 ported to C in order to overcome the limitations of the original php/dbus script  
@@ -29,16 +29,19 @@ you do not need to install this build
 it is only used to simplify building the bridgin plugin  
 if you already have pidgin , finch , or adium installed  
 you can delete this entire directory after building the plugin  
+if you want to use this newly compiled pidgin or finch  
+you may need to remove some of the ./configure --disable* switches
 
     cd ./pidgin*
-    ./configure
+    ./configure --disable-gtkui --disable-vv --disable-meanwhile --disable-avahi --disable-dbus --disable-perl --disable-tk
     make
 
 now go make some C(__) and when the build has completed  
 copy the contents of this repo into ./libpurple/plugins  
 cd into the plugins dir and run the install script
 
-    cd ./libpurple/plugins
+    cp </path/to/bridgin/sources>/* ./libpurple/plugins/
+    cd ./libpurple/plugins/
     chmod a+x ./install
     ./install
 
