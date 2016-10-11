@@ -1,8 +1,15 @@
 bridgin changelog
 
 
-2013-09-25 - v0.5
+2014-04-21
   CURRENT
+    working on some customizations requested by IRC users:
+      * trim nicks
+      * pounce disclaimer
+      * shoosh command
+
+2013-09-25 - v0.5
+  7fcff3e
     removed internal model mirror structs relying solely on purple prefs for state
     this fixed issue #1
 

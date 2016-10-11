@@ -1,3 +1,22 @@
+/*\
+|*| This file is part of the Bridgin program
+|*| Copyright 2013-2014 bill-auger <https://github.com/bill-auger/bridgin/issues>
+|*|
+|*| Bridgin is free software: you can redistribute it and/or modify
+|*| it under the terms of the GNU Affero General Public License as published by
+|*| the Free Software Foundation, either version 3 of the License, or
+|*| (at your option) any later version.
+|*|
+|*| Bridgin is distributed in the hope that it will be useful,
+|*| but WITHOUT ANY WARRANTY; without even the implied warranty of
+|*| MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+|*| GNU Affero General Public License for more details.
+|*|
+|*| You should have received a copy of the GNU Affero General Public License
+|*| along with Bridgin.  If not, see <http://www.gnu.org/licenses/>.
+\*/
+
+
 #include "bridgin.h"
 #include "bridgin.dbg.h"
 
