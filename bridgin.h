@@ -29,12 +29,12 @@
 // plugin constants
 #define PLUGIN_TYPE        PURPLE_PLUGIN_STANDARD
 #define PLUGIN_GUI_TYPE    NULL
-#define PLUGIN_ID          "core-mr-jonze-bridgin"
+#define PLUGIN_ID          "core-bill-auger-bridgin"
 #define PLUGIN_NAME        "Bridgin"
 #define PLUGIN_VERSION     "0.5.0"
 #define PLUGIN_SHORT_DESC  "Bridge multiple conversations"
 #define PLUGIN_LONG_DESC   "Relays chat message from/to specified conversations.\n\tType /? into any conversation for available commands."
-#define PLUGIN_AUTHOR      "bill auger <mr.j.spam.me@gmail.com>"
+#define PLUGIN_AUTHOR      "bill-auger <bill-auger@programmer.net>"
 #define PLUGIN_WEBSITE     "https://github.com/bill-auger/bridgin"
 #define PLUGIN_ONLOAD_CB   handlePluginLoaded
 #define PLUGIN_ONUNLOAD_CB handlePluginUnloaded

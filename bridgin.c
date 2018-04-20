@@ -734,7 +734,7 @@ void bridgeStatsMsgEach(const char* bridgePrefKey , void* unusedGListEachData)
 {
   char bridgeName[SM_BUFFER_SIZE] ; prefKey2Name(bridgePrefKey , bridgeName) ;
 
-  if (isChannelsPref(bridgePrefKey)) bridgeStatsMsg(bridgeName) ; chatBufferCat("\n") ;
+  if (isChannelsPref(bridgePrefKey)) { bridgeStatsMsg(bridgeName) ; chatBufferCat("\n") ; }
 }
 
 

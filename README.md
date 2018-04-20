@@ -4,7 +4,7 @@
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;to bridge multiple IM and chat sessions  
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;across the various chat services supported by libpurple  
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(aim, facebook, googletalk, icq, identi.ca,  
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;irc, msn, myspace, twitter, yahoo and many others)  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;irc, twitter, and many others)  
   
 this is a native purple plugin port of the [bridgin-php](https://github.com/bill-auger/bridgin-php) project  
 ported to C in order to overcome the limitations of the original php/dbus script  
@@ -40,10 +40,10 @@ now go make some C(__) and when the build has completed
 copy the contents of this repo into ./libpurple/plugins  
 cd into the plugins dir and run the install script
 
-    cp </path/to/bridgin/sources>/* ./libpurple/plugins/
     cd ./libpurple/plugins/
-    chmod a+x ./install
-    ./install
+    cp </path/to/bridgin/sources>/* .
+    chmod a+x ./install.sh
+    ./install.sh
 
 if your $HOME environment variable is properly set  
 the install script should reply with the following message  
@@ -62,7 +62,7 @@ into YOUR_HOME_DIR/.purple/plugins/ or /usr/lib/purple-2/ then restart pidgin
 if you are running without X or you do not want pidgin to launch automatically  
 use this comand to compile and install only
 
-    ./install nolaunch
+    ./install --nolaunch
 
 if you do not want the plugin to be automatically installed into your home dir  
 use this comand to compile only

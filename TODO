@@ -5,7 +5,11 @@ high-priority TODOs:
 
 potential features:
 	* (in progress) GUI prefs though not particularly useful but perhaps just for fun
-	* proper handling of special forms - e.g. /me
+	* (in progress) remote admin commands
+	* (in progress) remote non-admin commands such as /shoosh
+	* (in progress) bounce disclaimer
+	* (in progress) terse nicks
+	* proper handling of IRC special forms - e.g. /me
 	* /?who command (for all users) to list users on other networks
 	* centralized server-side auth to manage/block multiple instances in same channels
 	* compile and/or package binaries and/or find a debian sponsor
