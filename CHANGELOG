@@ -2,49 +2,23 @@ bridgin changelog
 
 
 2014-04-21
-  CURRENT
-    working on some customizations requested by IRC users:
+  IN_PROGRESS
+    customizations requested by IRC users:
       * trim nicks
       * pounce disclaimer
       * shoosh command
 
 2013-09-25 - v0.5
   7fcff3e
-    removed internal model mirror structs relying solely on purple prefs for state
-    this fixed issue #1
+    removed internal model structs to rely solely on purple prefs for state (issue #1)
 
 2013-09-23 - v0.5pre
   897a50cdfa
-    reimplemented help command and refactored remaining MVC concerns
-
-2013-09-22 - v0.5pre
-  634a0a3c13
-    reimplemented echo , chat , and broadcast commands
-
-2013-09-21 - v0.5pre
-  aff1a426a2
-    reimplemented disable/enable bridge commands
-
-2013-09-21 - v0.5pre
-  69c1ac69f0
-    reimplemented remove channel command and properly free heap resources
-
-2013-09-18 - v0.5pre
-  4102a2b311
-    reimplemented persistence via purple preferences prefs.xml
-
-2013-09-11 - v0.5pre
-  b107d6a1a7
-    reimplemented chat relay
-
-2013-09-10 - v0.5pre
-  b70b43e1fe
-    reimplemented add channel command and status reporting
-
-2013-09-08 - v0.5pre
-  2babc935b0
-    implement admin command handling
-
-2013-09-07 - v0.5pre
-  538eef5da2
-    initial commit with echo
+    implemented help command and refactored remaining MVC concerns
+    implemented echo , chat , and broadcast commands
+    implemented disable/enable bridge commands
+    implemented remove channel command and properly free heap resources
+    implemented persistence via purple preferences prefs.xml
+    implemented chat relay
+    implemented add channel command and status reporting
+    implemented admin command handling
