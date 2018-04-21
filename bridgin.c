@@ -219,12 +219,14 @@ gboolean isChannelsPref(const char* bridgePrefKey)
 }
 
 gboolean doesBridgeExist(const char* bridgeName)
-  { prepareBridgeKeys(bridgeName) ; return isChannelsPref(BridgeKeyBuffer) ; }
+{
+  prepareBridgeKeys(bridgeName) ; return isChannelsPref(BridgeKeyBuffer) ;
+}
 
 gboolean isBridgeEnabled(const char* bridgeName)
 {
-  prepareBridgeKeys(bridgeName) ;
-  return purple_prefs_exists(EnabledKeyBuffer) &&
+  return doesBridgeExist      (bridgeName      ) && // prepares EnabledKeyBuffer
+         purple_prefs_exists  (EnabledKeyBuffer) &&
          purple_prefs_get_bool(EnabledKeyBuffer) ;
 }
 
@@ -234,12 +236,20 @@ gboolean isChannelBridged(PurpleConversation* aConv)
   return !isBlank(thisBridgeName) ;
 }
 
-gboolean areReservedIds(char* bridgeName , char* channelUid , const char* channelName)
+gboolean shouldBridgeAll() { return TRUE ; }
+
+gboolean areReservedIds(char* bridgeName , PurpleConversation* thisConv)
 {
-  return (!strcmp(bridgeName  , "")         || // TODO: better validations?
-          !strcmp(channelUid  , "")         ||
-          !strcmp(channelName , "NickServ") ||
-          !strcmp(channelName , "MemoServ")) ;
+  const char* channelUid  = ChannelUidBuffer ;
+  const char* channelName = getChannelName(thisConv) ;
+
+  prepareChannelUid(thisConv) ;
+
+  // TODO: better validations?
+  return !strcmp(bridgeName  , ""        ) ||
+         !strcmp(channelUid  , ""        ) ||
+         !strcmp(channelName , "NickServ") ||
+         !strcmp(channelName , "MemoServ")  ;
 }
 
 void createChannel(char* bridgeName)
@@ -340,24 +350,30 @@ DBG("handlePluginUnloaded()") ;
   unregisterCommands() ; unregisterCallbacks() ; return TRUE ;
 }
 
-gboolean handleChat(PurpleAccount* thisAccount , char** sender , char** msg ,
-                    PurpleConversation* thisConv , PurpleMessageFlags* flags , void* data)
+gboolean handleChat(PurpleAccount* thisAccount , char* sender , char** message ,
+                    PurpleConversation* thisConv , PurpleMessageFlags flags)
 {
+  gboolean isLocal         = flags & PURPLE_MESSAGE_SEND ;
+  gboolean isRemote        = flags & PURPLE_MESSAGE_RECV ;
+  gboolean shouldBeBridged = !isLocal                    && isRemote         &&
+                             !isChannelBridged(thisConv) && shouldBridgeAll() ;
   char thisBridgeName[SM_BUFFER_SIZE] ;
 
-  if (!thisConv) return TRUE ; // supress rogue msgs (autojoined server msgs maybe unbound)
+  if (!thisConv) return FALSE ; // presumably, thisConv will always be valid here
 
+  if (shouldBeBridged && !areReservedIds(DEFAULT_BRIDGE_NAME , thisConv))
+    createChannel(DEFAULT_BRIDGE_NAME) ;
   getBridgeName(thisConv , thisBridgeName) ;
 
-#if DEBUG_CHAT // NOTE: DBGchat() should mirror changes to logic here
-DBGchat(thisAccount , *sender , thisConv , *msg , *flags , thisBridgeName) ;
+#if DEBUG_CHAT
+DBGchat(thisAccount , sender , thisConv , *message , &flags , isLocal , isRemote , shouldBeBridged , thisBridgeName) ;
 #endif
 
+  if ( isLocal                        ) return FALSE ; // never relay unprefixed local chat
+  if (!isRemote                       ) return FALSE ; // TODO: handle special message types
   if (!isBridgeEnabled(thisBridgeName)) return FALSE ; // input channel bridge is disabled
-  if (*flags & PURPLE_MESSAGE_SEND)     return FALSE ; // never relay unprefixed local chat
-  if (!(*flags & PURPLE_MESSAGE_RECV))  return FALSE ; // TODO: handle special message types
 
-  prepareRelayChat(NICK_PREFIX , *sender , *msg) ;
+  prepareRelayChat(NICK_PREFIX , sender , *message) ;
   relayMessage(thisBridgeName , thisConv) ; chatBufferClear() ;
 
   return FALSE ;
@@ -384,8 +400,7 @@ DBGcmd(command , *args) ;
   }
   else
   {
-    prepareChannelUid(thisConv) ;
-    if (!areReservedIds(thatBridgeName , ChannelUidBuffer , getChannelName(thisConv)))
+    if (!areReservedIds(thatBridgeName , thisConv))
       { createChannel(thatBridgeName) ; addResp(thisConv , thatBridgeName) ; }
     else addReservedResp(thisConv) ;
   }
@@ -492,6 +507,7 @@ DBGcmd(command , *args) ;
 
   helpResp(thisConv) ; return PURPLE_CMD_RET_OK ;
 }
+
 
 /* admin command responses */
 

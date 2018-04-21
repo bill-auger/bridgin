@@ -65,17 +65,28 @@ static void DBGcmd(const char* command , char* args)
 #endif
 
 #if DEBUG_CHAT
-static void DBGchat(PurpleAccount* thisAccount , char* sender , PurpleConversation* thisConv ,
-                    char* msg , PurpleMessageFlags flags , char* thisBridgeName)
+static void DBGchat(PurpleAccount*      thisAccount    , char*    sender          ,
+                    PurpleConversation* thisConv       , char*    message         ,
+                    PurpleMessageFlags* flags          , gboolean isLocal         ,
+                    gboolean            isRemote       , gboolean shouldBeBridged ,
+                    char*               thisBridgeName                            )
 {
-  char* convType = ((purple_conversation_get_type(thisConv) == PURPLE_CONV_TYPE_IM)?
-      RECEIVING_IM_SIGNAL : RECEIVING_CHAT_SIGNAL) ;
-  const char* channelName   = purple_conversation_get_name(thisConv) ;
-  gboolean isLocal          = (flags & PURPLE_MESSAGE_SEND) ;
-  gboolean isRemote         = (flags & PURPLE_MESSAGE_RECV) ;
-  gboolean isBridged        = isChannelBridged(thisConv) ;
-  gboolean isEnabled        = isBridgeEnabled(thisBridgeName) ;
-  char dbgBuffer[SM_BUFFER_SIZE] ;
+  gboolean    isIm        = purple_conversation_get_type(thisConv) == PURPLE_CONV_TYPE_IM ;
+  gboolean    isChat      = purple_conversation_get_type(thisConv) == PURPLE_CONV_TYPE_CHAT ;
+  const char* channelName = purple_conversation_get_name(thisConv) ;
+  const char* convType    = (isIm  ) ? RECEIVING_IM_SIGNAL   :
+                            (isChat) ? RECEIVING_CHAT_SIGNAL : "(unhandled)" ;
+  gboolean    isBridged   = isChannelBridged(thisConv      ) ;
+  gboolean    isEnabled   = isBridgeEnabled (thisBridgeName) ;
+  char        dbgBuffer[SM_BUFFER_SIZE] ; dbgBuffer[0] = '\0' ;
+
+#if DEBUG_VB
+  purple_debug_misc(PLUGIN_NAME , "convType=%s - channelName=%s - sender=%s - msg=%s\n"                           ,
+                    ((!!thisConv) ? (purple_conversation_get_type(thisConv) == PURPLE_CONV_TYPE_IM) ?
+                                    RECEIVING_IM_SIGNAL : RECEIVING_CHAT_SIGNAL  : "NULL"           ) ,
+                    ((!!thisConv) ? purple_conversation_get_name(thisConv) : "NULL"                 ) ,
+                    sender , message                                                                ) ;
+#endif // DEBUG_VB
 
   // server msgs
   if (!strcmp(channelName , "NickServ") || !strcmp(channelName , "MemoServ"))
@@ -85,7 +96,7 @@ static void DBGchat(PurpleAccount* thisAccount , char* sender , PurpleConversati
   }
 
   // relay echos
-  if (isLocal && !strcmp(msg , ChatBuffer))
+  if (isLocal && !strcmp(message , ChatBuffer))
   {
     DBGss(convType , " relay echo on channel '" , channelName , "' - ignoring") ;
     return ;
@@ -98,17 +109,21 @@ static void DBGchat(PurpleAccount* thisAccount , char* sender , PurpleConversati
            "%d channels on bridge '%s'" , NRelayChannels , thisBridgeName) ;
 
   // out
-  purple_debug_misc(PLUGIN_NAME , "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%d%s%s%s\n" ,
-      convType , ((isLocal)? " from admin " : " from user ") , sender ,
+  purple_debug_misc(PLUGIN_NAME , "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%d%s%s%s%s%s\n"        ,
+      convType , ((isLocal) ? " from admin " : " from user ") , sender                ,
       "\n\taccount = " , getProtocol(thisAccount) , " as " , getUsername(thisAccount) ,
-      "\n\tsender  = " , sender ,
-      "\n\tchannel = " , ((!thisConv) ? "(null)" : channelName) ,
-      "\n\tmessage = " , msg ,
-      "\n\tflags   = " , flags ,
-      "\n" , ((isLocal)?    "local message - dropping" :
-             ((!isRemote)?  "special message - dropping" :
-             ((!isBridged)? "unbridged - dropping" :
-             ((!isEnabled)? "bridge disabled - dropping" : "relaying to ")))) ,
-             ((!isRemote || !isBridged || !isEnabled)? "" : dbgBuffer)) ;
+      "\n\tsender  = " , sender                                                       ,
+      "\n\tchannel = " , ((!thisConv) ? "(null)" : channelName)                       ,
+      "\n\tmessage = " , message                                                      ,
+      "\n\tflags   = " , *flags                                                       ,
+      "\n" , (( isLocal       ) ? "local message - dropping"   :
+              (!isRemote      ) ? "special message - dropping" :
+              (shouldBeBridged) ? "added to default bridge"    : "")                  ,
+      "\n" , (( isLocal       ) ? ""                                             :
+              (!isRemote      ) ? ""                                             :
+              (!isBridged     ) ? ((shouldBeBridged) ? "add failed - dropping" :
+                                                       "unbridged - dropping"  ) :
+              (!isEnabled     ) ? "bridge disabled - dropping" : "relaying to "  )    ,
+             ((isRemote && isBridged && isEnabled) ? dbgBuffer : ""                  )) ;
 }
 #endif

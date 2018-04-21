@@ -49,8 +49,8 @@
 #define BCAST_PREFIX        "(BROADCAST from "
 
 // purple constants
-#define RECEIVING_IM_SIGNAL   "receiving-im-msg"
-#define RECEIVING_CHAT_SIGNAL "receiving-chat-msg"
+#define RECEIVING_IM_SIGNAL   "writing-im-msg"
+#define RECEIVING_CHAT_SIGNAL "writing-chat-msg"
 #define IRC_PROTOCOL          "IRC"
 
 // model constants
@@ -182,8 +182,8 @@ void         getNRelayChannels(char* bridgePrefKey , PurpleConversation* inputCo
 gboolean     doesBridgeExist(  const char* bridgeName) ;
 gboolean     isBridgeEnabled(  const char* bridgeName) ;
 gboolean     isChannelBridged( PurpleConversation* aConv) ;
-gboolean     areReservedIds(   char* bridgeName , char* channelUid ,
-                               const char* channelName) ;
+gboolean     shouldBridgeAll(  void) ;
+gboolean     areReservedIds(   char* bridgeName , PurpleConversation* thisConv) ;
 gboolean     isChannelsPref(   const char* bridgePrefKey) ;
 void         createChannel(    char* bridgeName) ;
 void         destroyChannel(   PurpleConversation* aConv) ;
@@ -197,9 +197,8 @@ void         enableBridgeEach( char* bridgePrefKey , gboolean* shouldEnable) ;
 void     handlePluginInit(    PurplePlugin* plugin) ;
 gboolean handlePluginLoaded(  PurplePlugin* plugin) ;
 gboolean handlePluginUnloaded(PurplePlugin* plugin) ;
-gboolean handleChat(          PurpleAccount* anAccount , char** sender ,
-                              char** msg , PurpleConversation* aConv ,
-                              PurpleMessageFlags* flags , void* data) ;
+gboolean handleChat(          PurpleAccount* thisAccount , char* sender , char** message ,
+                              PurpleConversation* thisConv , PurpleMessageFlags flags) ;
 
 // admin command handlers */
 PurpleCmdRet handleAddCmd(      PurpleConversation* aConv , const gchar* cmd ,
