@@ -62,7 +62,7 @@ into YOUR_HOME_DIR/.purple/plugins/ or /usr/lib/purple-2/ then restart pidgin
 if you are running without X or you do not want pidgin to launch automatically  
 use this comand to compile and install only
 
-    ./install nolaunch
+    ./install --no-launch
 
 if you do not want the plugin to be automatically installed into your home dir  
 use this comand to compile only
@@ -71,7 +71,7 @@ use this comand to compile only
   
   
 ## build instructions for windows
-follow [these instructions](https://test.developer.pidgin.im/wiki/BuildingWinPidgin) to build pidgin for windows  
+follow [these instructions](https://pidgin.im/development/building/2.x.y/windows/) to build pidgin for windows  
 then copy the contents of this repo into PIDGIN_SRC_DIR\libpurple\plugins  
 cd into PIDGIN_SRC_DIR\libpurple\plugins then make and install with:
 
