@@ -22,7 +22,7 @@ SUCCESS_MSG="compilation success"
 FAILURE_MSG="compilation failure"
 INSTALLING_MSG="installing to $HOME/.purple/plugins/"
 NO_HOME_MSG='your $HOME environment var is not properly set'" - copy the file '$PLUGIN_OBJ' to YOUR_HOME_DIR/.purple/plugins/ or /usr/lib/purple-2/"
-NOLAUNCH="nolaunch"
+NOLAUNCH="--no-launch"
 PIDGIN_BIN=`which pidgin`
 
 

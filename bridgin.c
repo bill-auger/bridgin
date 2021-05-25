@@ -356,6 +356,7 @@ DBGchat(thisAccount , *sender , thisConv , *msg , *flags , thisBridgeName) ;
   if (!isBridgeEnabled(thisBridgeName)) return FALSE ; // input channel bridge is disabled
   if (*flags & PURPLE_MESSAGE_SEND)     return FALSE ; // never relay unprefixed local chat
   if (!(*flags & PURPLE_MESSAGE_RECV))  return FALSE ; // TODO: handle special message types
+  if (msg[0] == '\')                    return FALSE ; // ignore messages beginning with: '\'
 
   prepareRelayChat(NICK_PREFIX , *sender , *msg) ;
   relayMessage(thisBridgeName , thisConv) ; chatBufferClear() ;
