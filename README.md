@@ -62,7 +62,7 @@ into YOUR_HOME_DIR/.purple/plugins/ or /usr/lib/purple-2/ then restart pidgin
 if you are running without X or you do not want pidgin to launch automatically  
 use this comand to compile and install only
 
-    ./install nolaunch
+    ./install --no-launch
 
 if you do not want the plugin to be automatically installed into your home dir  
 use this comand to compile only

@@ -352,10 +352,16 @@ gboolean handleChat(PurpleAccount* thisAccount , char** sender , char** msg ,
 #if DEBUG_CHAT // NOTE: DBGchat() should mirror changes to logic here
 DBGchat(thisAccount , *sender , thisConv , *msg , *flags , thisBridgeName) ;
 #endif
+purple_debug_misc(PLUGIN_NAME , "handleChat() send=%s recv=%s prefix=%s flags=%x msg=%s\n"                         ,
+                                (  *flags & PURPLE_MESSAGE_SEND ) ? "suppressed" : "passed" ,
+                                (!(*flags & PURPLE_MESSAGE_RECV)) ? "suppressed" : "passed" ,
+                                (msg[0] == '\\'                 ) ? "suppressed" : "passed" ,
+                                flags , msg                                                 ) ;
 
   if (!isBridgeEnabled(thisBridgeName)) return FALSE ; // input channel bridge is disabled
   if (*flags & PURPLE_MESSAGE_SEND)     return FALSE ; // never relay unprefixed local chat
   if (!(*flags & PURPLE_MESSAGE_RECV))  return FALSE ; // TODO: handle special message types
+  if (msg[0] == '\\')                   return FALSE ; // TODO: ignore messages beginning with: '\'
 
   prepareRelayChat(NICK_PREFIX , *sender , *msg) ;
   relayMessage(thisBridgeName , thisConv) ; chatBufferClear() ;
