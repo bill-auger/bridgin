@@ -71,7 +71,7 @@ use this comand to compile only
   
   
 ## build instructions for windows
-follow [these instructions](https://test.developer.pidgin.im/wiki/BuildingWinPidgin) to build pidgin for windows  
+follow [these instructions](https://pidgin.im/development/building/2.x.y/windows/) to build pidgin for windows  
 then copy the contents of this repo into PIDGIN_SRC_DIR\libpurple\plugins  
 cd into PIDGIN_SRC_DIR\libpurple\plugins then make and install with:
 
